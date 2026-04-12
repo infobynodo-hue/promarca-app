@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -162,7 +162,20 @@ export default function ProductosPage() {
                     {p.name}
                   </TableCell>
                   <TableCell className="text-zinc-500">
-                    {(p.category as any)?.name ?? "—"}
+                    <div className="flex items-center gap-1.5">
+                      <span>{(p.category as any)?.name ?? "—"}</span>
+                      {(p.category as any)?.slug && (
+                        <a
+                          href={`/catalogo/${(p.category as any).slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-zinc-400 hover:text-orange-400 transition-colors"
+                          title="Ver en sitio cliente"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="font-medium">
                     {formatPrice(p.price)}

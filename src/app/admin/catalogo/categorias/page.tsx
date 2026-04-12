@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 export default function CategoriasPage() {
@@ -213,7 +213,20 @@ export default function CategoriasPage() {
                     {cat.icon && <span className="mr-2">{cat.icon}</span>}
                     {cat.name}
                   </TableCell>
-                  <TableCell className="text-zinc-500">{cat.slug}</TableCell>
+                  <TableCell className="text-zinc-500">
+                    <div className="flex items-center gap-1.5">
+                      <span>{cat.slug}</span>
+                      <a
+                        href={`/catalogo/${cat.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-zinc-400 hover:text-orange-400 transition-colors"
+                        title="Ver en sitio cliente"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={cat.is_active ? "default" : "secondary"}

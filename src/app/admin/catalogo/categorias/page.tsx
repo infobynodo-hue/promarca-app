@@ -22,7 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, ExternalLink, LayoutGrid } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 export default function CategoriasPage() {
@@ -237,6 +238,11 @@ export default function CategoriasPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
+                    <Link href={`/admin/catalogo/categorias/${cat.id}`}>
+                      <Button variant="ghost" size="icon" title="Ver productos">
+                        <LayoutGrid className="h-4 w-4 text-orange-500" />
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="icon"

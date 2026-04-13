@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ExternalLink, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -98,11 +98,18 @@ export default function ProductosPage() {
             {products.length} productos en catálogo
           </p>
         </div>
-        <Link href="/admin/catalogo/nuevo">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Nuevo producto
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/catalogo/importar">
+            <Button variant="outline">
+              <FileUp className="mr-2 h-4 w-4" /> Importar PDF
+            </Button>
+          </Link>
+          <Link href="/admin/catalogo/nuevo">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Nuevo producto
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

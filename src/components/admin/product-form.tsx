@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Category, Subcategory, Product } from "@/lib/types";
+import { Category, Subcategory, ProductImage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, Upload, Star, Loader2, ImageOff } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -34,10 +34,13 @@ export function ProductForm({ productId }: ProductFormProps) {
   const supabase = createClient();
   const router = useRouter();
   const isEdit = !!productId;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [saving, setSaving] = useState(false);
+  const [images, setImages] = useState<ProductImage[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [form, setForm] = useState({
     reference: "",
@@ -62,7 +65,7 @@ export function ProductForm({ productId }: ProductFormProps) {
       if (isEdit) {
         const { data: product } = await supabase
           .from("products")
-          .select("*, product_colors(*)")
+          .select("*, product_colors(*), product_images(*)")
           .eq("id", productId)
           .single();
 
@@ -83,8 +86,12 @@ export function ProductForm({ productId }: ProductFormProps) {
               hex_color: c.hex_color,
             }))
           );
+          setImages(
+            (product.product_images ?? []).sort(
+              (a: any, b: any) => a.display_order - b.display_order
+            )
+          );
 
-          // Load subcategories for this category
           if (product.category_id) {
             const { data: subs } = await supabase
               .from("subcategories")
@@ -121,6 +128,84 @@ export function ProductForm({ productId }: ProductFormProps) {
     const updated = [...colors];
     updated[index] = { ...updated[index], [field]: value };
     setColors(updated);
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!productId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const ext = file.name.split(".").pop();
+    const path = `${productId}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("products")
+      .upload(path, file, { upsert: false });
+
+    if (uploadError) {
+      toast.error("Error al subir imagen: " + uploadError.message);
+      setUploadingImage(false);
+      return;
+    }
+
+    const isPrimary = images.length === 0;
+    const { data: inserted, error: dbError } = await supabase
+      .from("product_images")
+      .insert({
+        product_id: productId,
+        storage_path: path,
+        is_primary: isPrimary,
+        display_order: images.length,
+        alt_text: null,
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      toast.error("Error al guardar imagen: " + dbError.message);
+    } else {
+      setImages((prev) => [...prev, inserted]);
+      toast.success("Imagen subida");
+    }
+
+    setUploadingImage(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDeleteImage = async (img: ProductImage) => {
+    await supabase.storage.from("products").remove([img.storage_path]);
+    await supabase.from("product_images").delete().eq("id", img.id);
+
+    const remaining = images.filter((i) => i.id !== img.id);
+    // If we deleted the primary, make the first remaining primary
+    if (img.is_primary && remaining.length > 0) {
+      await supabase
+        .from("product_images")
+        .update({ is_primary: true })
+        .eq("id", remaining[0].id);
+      remaining[0] = { ...remaining[0], is_primary: true };
+    }
+    setImages(remaining);
+    toast.success("Imagen eliminada");
+  };
+
+  const handleSetPrimary = async (img: ProductImage) => {
+    if (img.is_primary) return;
+    await supabase
+      .from("product_images")
+      .update({ is_primary: false })
+      .eq("product_id", productId);
+    await supabase
+      .from("product_images")
+      .update({ is_primary: true })
+      .eq("id", img.id);
+    setImages(images.map((i) => ({ ...i, is_primary: i.id === img.id })));
+  };
+
+  const getImageUrl = (path: string) => {
+    const { data } = supabase.storage.from("products").getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handleSave = async () => {
@@ -190,7 +275,7 @@ export function ProductForm({ productId }: ProductFormProps) {
 
     toast.success(isEdit ? "Producto actualizado" : "Producto creado");
     setSaving(false);
-    router.push("/admin/catalogo");
+    if (!isEdit) router.push("/admin/catalogo");
   };
 
   return (
@@ -268,6 +353,99 @@ export function ProductForm({ productId }: ProductFormProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Images — only when editing */}
+          {isEdit && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Imágenes</CardTitle>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    La imagen con ⭐ se muestra en el catálogo
+                  </p>
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleUploadImage}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1 h-3 w-3" />
+                    )}
+                    {uploadingImage ? "Subiendo..." : "Subir imagen"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {images.length === 0 ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-200 p-8 cursor-pointer hover:border-orange-300 hover:bg-orange-50/50 transition-colors"
+                  >
+                    <ImageOff className="h-8 w-8 text-zinc-300" />
+                    <p className="text-sm text-zinc-400">Sin imágenes. Clic para subir.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                    {images.map((img) => (
+                      <div key={img.id} className="group relative">
+                        <div className="aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+                          <img
+                            src={getImageUrl(img.storage_path)}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        {/* Primary badge */}
+                        {img.is_primary && (
+                          <span className="absolute top-1 left-1 rounded bg-orange-500 px-1 py-0.5 text-[10px] font-bold text-white">
+                            Principal
+                          </span>
+                        )}
+                        {/* Actions */}
+                        <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                          {!img.is_primary && (
+                            <button
+                              onClick={() => handleSetPrimary(img)}
+                              title="Hacer principal"
+                              className="rounded bg-white/90 p-1 hover:bg-white"
+                            >
+                              <Star className="h-3.5 w-3.5 text-orange-500" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteImage(img)}
+                            title="Eliminar"
+                            className="rounded bg-white/90 p-1 hover:bg-white"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Add more */}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-200 cursor-pointer hover:border-orange-300 hover:bg-orange-50/50 transition-colors"
+                    >
+                      <Plus className="h-5 w-5 text-zinc-300" />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Colors */}
           <Card>
@@ -363,6 +541,12 @@ export function ProductForm({ productId }: ProductFormProps) {
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear producto"}
           </Button>
+
+          {!isEdit && (
+            <p className="text-xs text-zinc-400 text-center">
+              Podrás subir imágenes después de crear el producto
+            </p>
+          )}
         </div>
       </div>
     </>

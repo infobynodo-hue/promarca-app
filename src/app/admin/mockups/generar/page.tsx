@@ -245,7 +245,7 @@ function GenerarContent() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v); setSelectedTemplateId(""); setPreviews([]); }}>
+              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v ?? ""); setSelectedTemplateId(""); setPreviews([]); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar producto..." />
                 </SelectTrigger>

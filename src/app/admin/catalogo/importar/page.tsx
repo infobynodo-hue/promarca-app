@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText, AlertCircle, Sparkles, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText, AlertCircle, Sparkles, Image as ImageIcon, RefreshCw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { extractImagesFromPDF, uploadPDFToStorage, type ExtractedImage } from "@/lib/pdf-image-extractor";
@@ -41,6 +41,8 @@ export default function ImportarPage() {
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState(false);
   const [importedProductIds, setImportedProductIds] = useState<Record<string, string>>({});
+  const [duplicateRefs, setDuplicateRefs] = useState<string[]>([]);
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
 
   // PDF image extraction state
   const [extractingImages, setExtractingImages] = useState(false);
@@ -120,36 +122,85 @@ export default function ImportarPage() {
     }
 
     setImporting(true);
+    setDuplicateRefs([]);
 
-    const payload = toImport.map((p) => ({
-      reference: p.reference.trim().toUpperCase(),
-      name: p.name.trim(),
-      description: p.description || null,
-      price: p.price,
-      price_label: p.price_label || "Sin marca",
-      category_id: selectedCategory !== "none" ? selectedCategory : null,
-      is_active: true,
-    }));
+    const refs = toImport.map((p) => p.reference.trim().toUpperCase());
 
-    const { data: inserted, error } = await supabase
+    // ── Detectar referencias ya existentes ───────────────────────────────────
+    const { data: existing } = await supabase
       .from("products")
-      .insert(payload)
-      .select("id, reference");
+      .select("id, reference")
+      .in("reference", refs);
 
-    if (error) {
-      toast.error("Error al importar: " + error.message);
-      setImporting(false);
-      return;
+    const existingMap: Record<string, string> = {};
+    for (const row of existing ?? []) {
+      existingMap[row.reference] = row.id;
+    }
+    const dupes = refs.filter((r) => existingMap[r]);
+
+    if (dupes.length > 0) {
+      setDuplicateRefs(dupes);
     }
 
-    // Build reference → id map for image extraction linking
-    const idMap: Record<string, string> = {};
-    for (const row of inserted ?? []) {
-      idMap[row.reference] = row.id;
+    const newProducts   = toImport.filter((p) => !existingMap[p.reference.trim().toUpperCase()]);
+    const dupeProducts  = toImport.filter((p) =>  existingMap[p.reference.trim().toUpperCase()]);
+
+    const idMap: Record<string, string> = { ...existingMap };
+
+    // ── Insertar nuevos ──────────────────────────────────────────────────────
+    if (newProducts.length > 0) {
+      const payload = newProducts.map((p) => ({
+        reference: p.reference.trim().toUpperCase(),
+        name: p.name.trim(),
+        description: p.description || null,
+        price: p.price,
+        price_label: p.price_label || "Sin marca",
+        category_id: selectedCategory !== "none" ? selectedCategory : null,
+        is_active: true,
+      }));
+
+      const { data: inserted, error } = await supabase
+        .from("products")
+        .insert(payload)
+        .select("id, reference");
+
+      if (error) {
+        toast.error("Error al importar nuevos: " + error.message);
+        setImporting(false);
+        return;
+      }
+      for (const row of inserted ?? []) idMap[row.reference] = row.id;
     }
+
+    // ── Actualizar duplicados si el modo es "update" ─────────────────────────
+    if (duplicateMode === "update" && dupeProducts.length > 0) {
+      for (const p of dupeProducts) {
+        const ref = p.reference.trim().toUpperCase();
+        const existingId = existingMap[ref];
+        if (!existingId) continue;
+        await supabase.from("products").update({
+          name: p.name.trim(),
+          description: p.description || null,
+          price: p.price,
+          price_label: p.price_label || "Sin marca",
+          category_id: selectedCategory !== "none" ? selectedCategory : null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", existingId);
+      }
+    }
+
     setImportedProductIds(idMap);
 
-    toast.success(`${payload.length} productos importados correctamente`);
+    const skipped = duplicateMode === "skip" ? dupeProducts.length : 0;
+    const updated = duplicateMode === "update" ? dupeProducts.length : 0;
+
+    const msg = [
+      newProducts.length > 0 && `${newProducts.length} productos nuevos importados`,
+      updated > 0 && `${updated} actualizados`,
+      skipped > 0 && `${skipped} omitidos (ya existían)`,
+    ].filter(Boolean).join(" · ");
+
+    toast.success(msg || "Importación completada");
     setImporting(false);
     setDone(true);
   };
@@ -316,27 +367,68 @@ export default function ImportarPage() {
       {/* Results table */}
       {products.length > 0 && (
         <Card className="mt-6">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-base">Productos detectados</CardTitle>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Revisá y editá antes de importar. Desmarcá los que no querés.
-              </p>
+          <CardHeader className="pb-3 space-y-3">
+            <div className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Productos detectados</CardTitle>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Revisá y editá antes de importar. Desmarcá los que no querés.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">{selectedCount} seleccionados</Badge>
+                <Button
+                  onClick={handleImport}
+                  disabled={importing || selectedCount === 0 || done}
+                >
+                  {importing ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Importando...</>
+                  ) : done ? (
+                    <><CheckCircle2 className="mr-2 h-4 w-4" />Importados</>
+                  ) : (
+                    `Importar ${selectedCount} productos`
+                  )}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="outline">{selectedCount} seleccionados</Badge>
-              <Button
-                onClick={handleImport}
-                disabled={importing || selectedCount === 0 || done}
-              >
-                {importing ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Importando...</>
-                ) : done ? (
-                  <><CheckCircle2 className="mr-2 h-4 w-4" />Importados</>
-                ) : (
-                  `Importar ${selectedCount} productos`
-                )}
-              </Button>
+
+            {/* Duplicate handling option */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">
+                ¿Qué hacer si ya existe un producto con la misma referencia?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDuplicateMode("skip")}
+                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                    duplicateMode === "skip"
+                      ? "border-amber-400 bg-amber-100 text-amber-800"
+                      : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300"
+                  }`}
+                >
+                  <SkipForward className="h-3.5 w-3.5" />
+                  Omitir — no tocar el existente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateMode("update")}
+                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                    duplicateMode === "update"
+                      ? "border-orange-400 bg-orange-50 text-orange-700"
+                      : "border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300"
+                  }`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Actualizar — sobreescribir nombre y precio
+                </button>
+              </div>
+              {duplicateRefs.length > 0 && (
+                <p className="text-xs text-amber-700">
+                  {duplicateRefs.length} referencia{duplicateRefs.length > 1 ? "s" : ""} ya existente{duplicateRefs.length > 1 ? "s" : ""}:{" "}
+                  <span className="font-mono font-bold">{duplicateRefs.slice(0, 6).join(", ")}{duplicateRefs.length > 6 ? ` +${duplicateRefs.length - 6} más` : ""}</span>
+                </p>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-0">

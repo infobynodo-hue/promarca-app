@@ -198,6 +198,7 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     align-items: flex-start;
   }
   .logo-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .logo-img { height: 38px; width: auto; display: block; }
   .logo {
     font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1;
   }
@@ -403,9 +404,9 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     text-align: center;
   }
   .footer-logo {
-    font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 4px;
+    margin-bottom: 8px; display: flex; justify-content: center;
   }
-  .footer-logo .pro { color: ${primary}; }
+  .footer-logo img { height: 28px; width: auto; }
   .footer-contact-name {
     font-size: 15px; font-weight: 700; color: #111; margin-bottom: 2px;
   }
@@ -419,10 +420,9 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
   }
   .footer-contact-grid span { display: flex; align-items: center; gap: 4px; }
   .footer-bottom-logo {
-    font-size: 18px; font-weight: 800; color: #111; letter-spacing: -0.5px;
-    margin-top: 16px;
+    margin-top: 16px; display: flex; justify-content: center;
   }
-  .footer-bottom-logo .pro { color: ${primary}; }
+  .footer-bottom-logo img { height: 22px; width: auto; opacity: 0.55; }
 
   /* ── Print ── */
   @media print {
@@ -449,7 +449,8 @@ ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(func
   <div class="top-bar">
     <div class="top-bar-inner">
       <div class="logo-wrap">
-        <div class="logo"><span class="pro">Pro</span><span class="marca">marca</span></div>
+        <img src="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/img/promarca-logo.png"
+             alt="ProMarca" class="logo-img" />
         <div class="logo-tagline">
           <span class="accent">Inversión</span>
           <span>Fidelización</span>
@@ -541,7 +542,7 @@ ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(func
 
   <!-- ── FOOTER ── -->
   <div class="footer">
-    <div class="footer-logo"><span class="pro">Pro</span>marca</div>
+    <div class="footer-logo"><img src="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/img/promarca-logo.png" alt="ProMarca" /></div>
     <div class="footer-contact-name">${s.quote_contact_name}</div>
     <div class="footer-contact-title">${s.quote_contact_title}</div>
     <div class="footer-contact-grid">
@@ -550,7 +551,7 @@ ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(func
       <span>📸 @${s.quote_instagram}</span>
       <span>🌐 ${s.quote_website}</span>
     </div>
-    <div class="footer-bottom-logo"><span class="pro">Pro</span>marca</div>
+    <div class="footer-bottom-logo"><img src="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/img/promarca-logo.png" alt="ProMarca" /></div>
   </div>
 
 </div><!-- /page -->

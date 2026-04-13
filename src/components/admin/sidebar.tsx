@@ -42,11 +42,9 @@ export function AdminSidebar() {
         <img
           src="/img/promarca-logo.png"
           alt="ProMarca"
-          className="h-6 w-auto"
+          className="h-7 w-auto"
+          style={{ filter: "brightness(0) invert(1)" }}
         />
-        <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-          Admin
-        </span>
       </div>
 
       {/* Navigation */}

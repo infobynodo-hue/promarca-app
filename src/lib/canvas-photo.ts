@@ -96,10 +96,8 @@ function drawBackground(ctx: CanvasRenderingContext2D) {
 }
 
 // ── Floor reflection anchored to actual product bottom ────────────────────────
-// productBottomY  = exact Y pixel on the canvas where the product ends
-// destX, destW    = horizontal placement of the full image on canvas
-// destY, destH    = vertical placement of the full image on canvas
-// img             = the no-bg image element
+// Draws reflection on an OFFSCREEN canvas first, then composites onto main canvas.
+// This avoids destination-out destroying the background.
 function drawReflection(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -107,38 +105,38 @@ function drawReflection(
   destY: number,
   destW: number,
   destH: number,
-  productBottomY: number  // actual product base in canvas coords
+  productBottomY: number
 ) {
-  const reflH = destH * 0.22; // height of the reflection band
+  const reflH = Math.round(destH * 0.22);
 
-  ctx.save();
-  // Translate to the exact product base, then flip vertically
-  ctx.translate(destX + destW / 2, productBottomY);
-  ctx.scale(1, -1);
+  // 1. Offscreen canvas — same size as main canvas
+  const off = document.createElement("canvas");
+  off.width  = SIZE;
+  off.height = SIZE;
+  const offCtx = off.getContext("2d")!;
 
-  // Clip to reflection band
-  ctx.beginPath();
-  ctx.rect(-destW / 2, 0, destW, reflH);
-  ctx.clip();
+  // 2. Draw flipped product into offscreen, pivoted at productBottomY
+  offCtx.save();
+  offCtx.translate(destX + destW / 2, productBottomY);
+  offCtx.scale(1, -1);
+  offCtx.globalAlpha = 0.30;
+  // srcOffsetY brings the bottom of the product to y=0 after flip
+  const srcOffsetY = destY - productBottomY;
+  offCtx.drawImage(img, -destW / 2, srcOffsetY, destW, destH);
+  offCtx.restore();
 
-  // Fade gradient for the reflection (source → transparent)
-  const fade = ctx.createLinearGradient(0, 0, 0, reflH);
-  fade.addColorStop(0,   "rgba(255,255,255,0)");  // will use globalAlpha
-  fade.addColorStop(1,   "rgba(255,255,255,1)");
+  // 3. Fade the reflection out vertically using destination-out ON THE OFFSCREEN
+  offCtx.save();
+  const fade = offCtx.createLinearGradient(0, productBottomY, 0, productBottomY + reflH);
+  fade.addColorStop(0,   "rgba(0,0,0,0)");   // fully keep at top
+  fade.addColorStop(1,   "rgba(0,0,0,1)");   // fully erase at bottom
+  offCtx.globalCompositeOperation = "destination-out";
+  offCtx.fillStyle = fade;
+  offCtx.fillRect(0, productBottomY, SIZE, reflH);
+  offCtx.restore();
 
-  // Draw flipped product clipped to reflH
-  // We offset vertically so we're drawing the BOTTOM of the product
-  const srcOffsetY = destY - productBottomY; // negative — product is above
-  ctx.globalAlpha = 0.28;
-  ctx.drawImage(img, -destW / 2, srcOffsetY, destW, destH);
-
-  // Fade overlay — erase the reflection progressively
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = "destination-out";
-  ctx.fillStyle = fade;
-  ctx.fillRect(-destW / 2, 0, destW, reflH);
-
-  ctx.restore();
+  // 4. Composite offscreen reflection onto main canvas normally
+  ctx.drawImage(off, 0, 0);
 }
 
 // ── Load image ────────────────────────────────────────────────────────────────
@@ -215,8 +213,8 @@ async function generateHero(noBgUrl: string): Promise<Blob> {
 }
 
 // ── STYLE 2: Detail ──────────────────────────────────────────────────────────
-// Zooms into the top 48% of the ACTUAL PRODUCT pixels (not the image bounding box).
-// Shows lid, handle, logo area, texture — the interesting top part.
+// Zooms into the top 48% of ACTUAL PRODUCT pixels and scales it to FILL the frame.
+// The crop bleeds to the edges — no empty space below.
 async function generateDetail(noBgUrl: string): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width  = SIZE;
@@ -235,21 +233,25 @@ async function generateDetail(noBgUrl: string): Promise<Blob> {
 
   const bounds = getProductBounds(img);
 
-  // Crop region in SOURCE image: top 48% of the product's pixel extent
+  // Source crop: top 48% of actual product pixel area
   const srcX = bounds.left;
   const srcY = bounds.top;
   const srcW = bounds.width;
-  const srcH = Math.round(bounds.height * 0.48);  // top 48% of actual product
+  const srcH = Math.round(bounds.height * 0.48);
 
-  // Scale this crop to fill 90% of canvas
-  const maxDim = SIZE * 0.90;
-  const scale  = Math.min(maxDim / srcW, maxDim / srcH);
-  const dstW   = srcW * scale;
-  const dstH   = srcH * scale;
+  // Scale to fill the FULL canvas height (not just 90%).
+  // Use fill-mode scaling: the crop fills the frame, centered horizontally.
+  const scaleByH = SIZE / srcH;
+  const scaleByW = SIZE / srcW;
+  // Use whichever fits the frame fully (fill, not fit)
+  const scale = Math.max(scaleByH, scaleByW) * 0.97; // slight breathing room
 
-  // Center on canvas, slightly toward top
+  const dstW = srcW * scale;
+  const dstH = srcH * scale;
+
+  // Center horizontally, anchor to top of canvas with small padding
   const dstX = (SIZE - dstW) / 2;
-  const dstY = (SIZE - dstH) / 2 - SIZE * 0.04;
+  const dstY = SIZE * 0.02; // tiny top margin
 
   ctx.drawImage(img, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
 

@@ -289,9 +289,18 @@ export default function NuevaCotizacionPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between mb-3">
                 <CardTitle>Productos</CardTitle>
-                <Button variant="outline" size="sm" onClick={addManualItem}>
-                  <Plus className="mr-1 h-3 w-3" /> Manual
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowProductDialog(true)}
+                  >
+                    <Search className="mr-1 h-3 w-3" /> Del catálogo
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={addManualItem}>
+                    <Plus className="mr-1 h-3 w-3" /> Manual
+                  </Button>
+                </div>
               </div>
               {/* Inline product search */}
               <div className="relative">

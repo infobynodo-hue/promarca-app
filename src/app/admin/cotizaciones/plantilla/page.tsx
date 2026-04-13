@@ -37,6 +37,10 @@ interface Settings {
   quote_conditions: string;
   quote_payment_terms: string;
   quote_footer_extra: string;
+  quote_contact_name: string;
+  quote_contact_title: string;
+  quote_instagram: string;
+  quote_website: string;
 }
 
 interface SavedTemplate {
@@ -50,14 +54,17 @@ interface SavedTemplate {
 const DEFAULTS: Settings = {
   quote_company_name: "ProMarca",
   quote_company_tagline: "Productos Promocionales",
-  quote_company_email: "hola@promarca.co",
-  quote_company_phone: "+57 300 000 0000",
+  quote_company_email: "promarcapop@gmail.com",
+  quote_company_phone: "302 521 2938 - 311 5096743",
   quote_company_nit: "XXX.XXX.XXX-X",
   quote_primary_color: "#FF6B1A",
-  quote_conditions:
-    "Precios sujetos a cambio sin previo aviso. Tiempo de producción: 8-15 días hábiles según producto y cantidad.",
-  quote_payment_terms: "50% anticipo, 50% contra entrega.",
+  quote_conditions: "Si desea el servicio personalizado con su marca requerimos el logo editable que va brandeado en el producto respectivo.",
+  quote_payment_terms: "Pago Anticipado. El costo del envío varía según la ciudad destino, descrito en la cotización.",
   quote_footer_extra: "",
+  quote_contact_name: "Sthefany Ahumada",
+  quote_contact_title: "Publicista y Estratega de Marketing",
+  quote_instagram: "pro__marca",
+  quote_website: "promarca.co",
 };
 
 // ── Sample quote data for preview ──────────────────────────────────────────
@@ -404,6 +411,22 @@ export default function PlantillaPage() {
               <div>
                 <Label className="text-xs">NIT</Label>
                 <Input value={settings.quote_company_nit} onChange={(e) => set("quote_company_nit", e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Nombre del asesor / contacto</Label>
+                <Input value={settings.quote_contact_name} onChange={(e) => set("quote_contact_name", e.target.value)} placeholder="Sthefany Ahumada" />
+              </div>
+              <div>
+                <Label className="text-xs">Cargo del asesor</Label>
+                <Input value={settings.quote_contact_title} onChange={(e) => set("quote_contact_title", e.target.value)} placeholder="Publicista y Estratega de Marketing" />
+              </div>
+              <div>
+                <Label className="text-xs">Instagram (sin @)</Label>
+                <Input value={settings.quote_instagram} onChange={(e) => set("quote_instagram", e.target.value)} placeholder="pro__marca" />
+              </div>
+              <div>
+                <Label className="text-xs">Sitio web</Label>
+                <Input value={settings.quote_website} onChange={(e) => set("quote_website", e.target.value)} placeholder="promarca.co" />
               </div>
             </CardContent>
           </Card>

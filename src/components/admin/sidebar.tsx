@@ -9,6 +9,7 @@ import {
   FileText,
   Users,
   Palette,
+  Sparkles,
   LogOut,
   ExternalLink,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/admin/cotizaciones", label: "Cotizaciones", icon: FileText },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/mockups", label: "Mockups", icon: Palette },
+  { href: "/admin/fotos", label: "Fotos con IA", icon: Sparkles },
 ];
 
 export function AdminSidebar() {

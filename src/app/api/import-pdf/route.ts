@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -24,8 +24,9 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey });
 
+    // Usamos claude-3-5-haiku: mucho más rápido (~5-10s), perfecto para extracción
     const response = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-3-5-haiku-20241022",
       max_tokens: 8000,
       messages: [
         {
@@ -44,24 +45,16 @@ export async function POST(req: NextRequest) {
               text: `Analiza este catálogo de productos promocionales y extrae TODOS los productos que encuentres.
 
 Para cada producto extrae:
-- reference: código de referencia (ej: "VA-1029", "MU-321", "BO-102")
-- name: nombre descriptivo del producto. Si el PDF no tiene nombre explícito, genera uno descriptivo basado en el tipo de producto y la referencia (ej: "Bolso VA-1029", "Termo MU-321")
-- price: precio en COP como número entero (los puntos son separadores de miles, ej: "$94.238" → 94238, "$31.311" → 31311)
-- price_label: etiqueta del precio (ej: "Sin marca", "sin marca", o lo que aparezca junto al precio)
-- description: descripción breve si está disponible, sino null
+- reference: código de referencia (ej: "VA-1029", "MU-321", "BO-102", "LAP-001")
+- name: nombre descriptivo del producto. Si el PDF no tiene nombre explícito, genera uno basado en el tipo de objeto y la referencia (ej: "Lapicero LAP-001", "Bolso VA-1029", "Termo MU-321")
+- price: precio en COP como número entero. Los puntos son separadores de miles (ej: "$94.238" → 94238, "$31.311" → 31311, "94.238" → 94238)
+- price_label: etiqueta del precio si existe (ej: "Sin marca", "sin marca"). Si no aparece usa "Sin marca"
+- description: descripción breve del producto si está disponible, sino null
 
-Responde ÚNICAMENTE con un JSON array válido sin texto adicional ni bloques de código:
-[
-  {
-    "reference": "VA-1029",
-    "name": "Bolso VA-1029",
-    "price": 94238,
-    "price_label": "Sin marca",
-    "description": null
-  }
-]
+Responde ÚNICAMENTE con un JSON array válido, sin texto adicional, sin bloques de código markdown:
+[{"reference":"LAP-001","name":"Lapicero LAP-001","price":5000,"price_label":"Sin marca","description":null}]
 
-Si no encuentras ningún producto, responde con un array vacío: []`,
+Si no encuentras productos responde: []`,
             },
           ],
         },
@@ -70,16 +63,21 @@ Si no encuentras ningún producto, responde con un array vacío: []`,
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
 
-    // Extract JSON from response (handle cases where model adds extra text)
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      return NextResponse.json({ error: "No se pudo parsear la respuesta de Claude", raw: text }, { status: 500 });
+      return NextResponse.json(
+        { error: "Claude no pudo extraer productos. Intentá con otro PDF.", raw: text },
+        { status: 500 }
+      );
     }
 
     const products = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ products });
+    return NextResponse.json({ products, model: "claude-3-5-haiku-20241022" });
   } catch (err: any) {
     console.error("import-pdf error:", err);
-    return NextResponse.json({ error: err.message ?? "Error inesperado" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message ?? "Error inesperado al procesar el PDF" },
+      { status: 500 }
+    );
   }
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Category } from "@/lib/types";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -25,21 +24,18 @@ interface ExtractedProduct {
   price: number;
   price_label: string;
   description: string | null;
-  // UI state
   _include: boolean;
 }
-
-const formatCOP = (n: number) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
 export default function ImportarPage() {
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("none");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const [products, setProducts] = useState<ExtractedProduct[]>([]);
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState(false);
@@ -57,6 +53,7 @@ export default function ImportarPage() {
     if (f && f.type === "application/pdf") {
       setSelectedFile(f);
       setProducts([]);
+      setExtractError(null);
       setDone(false);
     } else if (f) {
       toast.error("Solo se aceptan archivos PDF");
@@ -67,6 +64,7 @@ export default function ImportarPage() {
     if (!selectedFile) return;
     setExtracting(true);
     setProducts([]);
+    setExtractError(null);
     setDone(false);
 
     try {
@@ -77,12 +75,12 @@ export default function ImportarPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error ?? "Error al procesar el PDF");
+        setExtractError(data.error ?? "Error al procesar el PDF");
         return;
       }
 
       if (!data.products?.length) {
-        toast.info("No se encontraron productos en el PDF");
+        setExtractError("No se encontraron productos en el PDF. Verificá que el PDF contenga un catálogo con referencias y precios.");
         return;
       }
 
@@ -93,9 +91,9 @@ export default function ImportarPage() {
           _include: true,
         }))
       );
-      toast.success(`${data.products.length} productos detectados`);
+      toast.success(`¡${data.products.length} productos detectados!`);
     } catch {
-      toast.error("Error de red al procesar el PDF");
+      setExtractError("Error de conexión. Verificá tu internet e intentá de nuevo.");
     } finally {
       setExtracting(false);
     }
@@ -104,7 +102,7 @@ export default function ImportarPage() {
   const handleImport = async () => {
     const toImport = products.filter((p) => p._include);
     if (!toImport.length) {
-      toast.error("Selecciona al menos un producto");
+      toast.error("Seleccioná al menos un producto");
       return;
     }
 
@@ -116,7 +114,7 @@ export default function ImportarPage() {
       description: p.description || null,
       price: p.price,
       price_label: p.price_label || "Sin marca",
-      category_id: selectedCategory || null,
+      category_id: selectedCategory !== "none" ? selectedCategory : null,
       is_active: true,
     }));
 
@@ -157,8 +155,8 @@ export default function ImportarPage() {
         </div>
       </div>
 
-      {/* Step 1: Upload */}
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        {/* Step 1: Upload */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">
@@ -195,6 +193,7 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
 
+        {/* Step 2: Category */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">
@@ -203,14 +202,14 @@ export default function ImportarPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-zinc-400">
-              Todos los productos importados se asignarán a esta categoría. Puedes cambiarla después.
+              Todos los productos importados se asignarán a esta categoría. Podés cambiarla después.
             </p>
-            <Select value={selectedCategory} onValueChange={(v) => setSelectedCategory(v ?? "")}>
+            <Select value={selectedCategory} onValueChange={(v) => setSelectedCategory(v ?? "none")}>
               <SelectTrigger>
                 <SelectValue placeholder="Sin categoría" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Sin categoría</SelectItem>
+                <SelectItem value="none">Sin categoría</SelectItem>
                 {categories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.icon} {c.name}
@@ -221,6 +220,7 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
 
+        {/* Step 3: Extract */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">
@@ -229,7 +229,8 @@ export default function ImportarPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-zinc-400">
-              Claude AI leerá el PDF y detectará referencias, precios y nombres de producto automáticamente.
+              Claude AI leerá el PDF y detectará referencias, precios y nombres automáticamente.
+              <span className="block mt-1 text-zinc-300">Demora ~15-30 segundos según el tamaño.</span>
             </p>
             <Button
               onClick={handleExtract}
@@ -252,6 +253,17 @@ export default function ImportarPage() {
         </Card>
       </div>
 
+      {/* Error message — visible en pantalla */}
+      {extractError && (
+        <div className="mt-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-800">No se pudo extraer</p>
+            <p className="text-sm text-red-600 mt-0.5">{extractError}</p>
+          </div>
+        </div>
+      )}
+
       {/* Results table */}
       {products.length > 0 && (
         <Card className="mt-6">
@@ -259,7 +271,7 @@ export default function ImportarPage() {
             <div>
               <CardTitle className="text-base">Productos detectados</CardTitle>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Revisa y edita antes de importar. Desmarca los que no quieras.
+                Revisá y editá antes de importar. Desmarcá los que no querés.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -269,15 +281,9 @@ export default function ImportarPage() {
                 disabled={importing || selectedCount === 0 || done}
               >
                 {importing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Importando...
-                  </>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Importando...</>
                 ) : done ? (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Importados
-                  </>
+                  <><CheckCircle2 className="mr-2 h-4 w-4" />Importados</>
                 ) : (
                   `Importar ${selectedCount} productos`
                 )}

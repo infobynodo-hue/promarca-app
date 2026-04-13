@@ -30,7 +30,7 @@ export default async function CatalogPage({ params }: Props) {
       .order("display_order"),
     supabase
       .from("products")
-      .select("*, product_colors(*)")
+      .select("*, product_colors(*), product_images(id, storage_path, is_primary, display_order)")
       .eq("category_id", category.id)
       .eq("is_active", true)
       .order("reference"),
@@ -77,15 +77,24 @@ export default async function CatalogPage({ params }: Props) {
 
       {/* Dynamic grid with filtering */}
       <CatalogGrid
-        products={prods.map((p: any) => ({
-          id: p.id,
-          reference: p.reference,
-          name: p.name,
-          price: p.price,
-          price_label: p.price_label,
-          subcategory_id: p.subcategory_id,
-          product_colors: p.product_colors ?? [],
-        }))}
+        products={prods.map((p: any) => {
+          const imgs: any[] = p.product_images ?? [];
+          const sorted = [...imgs].sort((a, b) => a.display_order - b.display_order);
+          const primary = sorted.find((i) => i.is_primary) ?? sorted[0];
+          const primaryImageUrl = primary
+            ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${primary.storage_path}`
+            : null;
+          return {
+            id: p.id,
+            reference: p.reference,
+            name: p.name,
+            price: p.price,
+            price_label: p.price_label,
+            subcategory_id: p.subcategory_id,
+            product_colors: p.product_colors ?? [],
+            primaryImageUrl,
+          };
+        })}
         subcategories={subs}
         categoryIcon={category.icon ?? "📦"}
       />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
 
 interface Color {
   id: string;
@@ -16,6 +17,7 @@ interface Product {
   price_label: string;
   subcategory_id: string | null;
   product_colors: Color[];
+  primaryImageUrl?: string | null;
 }
 
 interface Subcategory {
@@ -40,6 +42,7 @@ const formatPrice = (price: number) =>
 export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [sort, setSort] = useState("default");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = products;
@@ -90,9 +93,22 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
         <p className="section-count">{filtered.length} productos</p>
         <div className="products-grid">
           {filtered.map((p) => (
-            <article key={p.id} className="product-card">
+            <article
+              key={p.id}
+              className="product-card"
+              style={{ cursor: "pointer" }}
+              onClick={() => setSelectedProductId(p.id)}
+            >
               <div className="product-thumb">
-                <div className="product-thumb-placeholder">{categoryIcon}</div>
+                {p.primaryImageUrl ? (
+                  <img
+                    src={p.primaryImageUrl}
+                    alt={p.name}
+                    style={{ width: "100%", height: "100%", objectFit: "contain", padding: "8px" }}
+                  />
+                ) : (
+                  <div className="product-thumb-placeholder">{categoryIcon}</div>
+                )}
               </div>
               <div className="product-info">
                 {p.product_colors.length > 0 && (
@@ -116,7 +132,15 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
                   <span className="price-badge">{p.price_label}</span>
                   <p className="product-price">{formatPrice(p.price)}</p>
                 </div>
-                <a href="/#contacto" className="btn-personalizar">Personalizar</a>
+                <button
+                  className="btn-personalizar"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedProductId(p.id);
+                  }}
+                >
+                  Ver detalles
+                </button>
               </div>
             </article>
           ))}
@@ -128,6 +152,13 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
           )}
         </div>
       </section>
+
+      {/* Product detail modal */}
+      <ProductDetailModal
+        productId={selectedProductId}
+        onClose={() => setSelectedProductId(null)}
+        isAdmin={false}
+      />
     </>
   );
 }

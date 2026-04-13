@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ProductImageModal } from "@/components/admin/product-image-modal";
+import { ProductDetailModal } from "@/components/ProductDetailModal";
 import {
   Plus, Pencil, Trash2, Search, ExternalLink, FileUp,
   LayoutGrid, List, ImageIcon, Archive, PackageOpen,
@@ -34,8 +35,10 @@ export default function ProductosPage() {
   const [filterCat, setFilterCat] = useState("all");
   const [view, setView] = useState<"list" | "gallery">("list");
 
-  // Image modal
+  // Image modal (manage images)
   const [modalProduct, setModalProduct] = useState<ProductWithImages | null>(null);
+  // Detail modal (view product)
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
 
   const fetchData = async () => {
     const [prodRes, catRes] = await Promise.all([
@@ -202,9 +205,9 @@ export default function ProductosPage() {
                     <TableRow key={p.id}>
                       <TableCell>
                         <div
-                          className="h-10 w-10 rounded-lg border border-zinc-200 bg-zinc-50 overflow-hidden cursor-pointer hover:border-orange-300 transition-colors flex items-center justify-center"
-                          onClick={() => setModalProduct(p)}
-                          title="Gestionar imágenes"
+                          className="h-10 w-10 rounded-lg border border-zinc-200 bg-zinc-50 overflow-hidden cursor-pointer hover:border-orange-400 transition-colors flex items-center justify-center"
+                          onClick={() => setDetailProductId(p.id)}
+                          title="Ver producto"
                         >
                           {imgPath ? (
                             <img src={getImageUrl(imgPath)} alt="" className="h-full w-full object-cover" />
@@ -278,7 +281,7 @@ export default function ProductosPage() {
                     <div
                       key={p.id}
                       className="group cursor-pointer"
-                      onClick={() => setModalProduct(p)}
+                      onClick={() => setDetailProductId(p.id)}
                     >
                       <div className={`relative aspect-square overflow-hidden rounded-xl border-2 transition-all
                         ${hasImages ? "border-zinc-200 group-hover:border-orange-400" : "border-dashed border-zinc-200 group-hover:border-orange-300 bg-zinc-50"}`}>
@@ -314,7 +317,7 @@ export default function ProductosPage() {
         </div>
       )}
 
-      {/* Quick image modal */}
+      {/* Quick image modal (from edit page) */}
       {modalProduct && (
         <ProductImageModal
           productId={modalProduct.id}
@@ -325,6 +328,13 @@ export default function ProductosPage() {
           onImagesChanged={fetchData}
         />
       )}
+
+      {/* Product detail modal */}
+      <ProductDetailModal
+        productId={detailProductId}
+        onClose={() => setDetailProductId(null)}
+        isAdmin={true}
+      />
     </>
   );
 }

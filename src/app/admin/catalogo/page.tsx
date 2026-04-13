@@ -15,9 +15,13 @@ import {
 } from "@/components/ui/select";
 import { ProductImageModal } from "@/components/admin/product-image-modal";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
+import { PriceCalculator } from "@/components/admin/PriceCalculator";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Plus, Pencil, Trash2, Search, ExternalLink, FileUp,
-  LayoutGrid, List, ImageIcon, Archive, PackageOpen,
+  LayoutGrid, List, ImageIcon, Archive, PackageOpen, Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -39,6 +43,8 @@ export default function ProductosPage() {
   const [modalProduct, setModalProduct] = useState<ProductWithImages | null>(null);
   // Detail modal (view product)
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
+  // Price calculator modal (quick price update from list)
+  const [calcProduct, setCalcProduct] = useState<ProductWithImages | null>(null);
 
   const fetchData = async () => {
     const [prodRes, catRes] = await Promise.all([
@@ -60,6 +66,14 @@ export default function ProductosPage() {
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) { toast.error("Error: " + error.message); return; }
     toast.success("Producto eliminado");
+    fetchData();
+  };
+
+  const handleApplyPrice = async (productId: string, price: number) => {
+    const { error } = await supabase.from("products").update({ price }).eq("id", productId);
+    if (error) { toast.error("Error al actualizar precio"); return; }
+    toast.success("Precio actualizado ✓");
+    setCalcProduct(null);
     fetchData();
   };
 
@@ -229,7 +243,18 @@ export default function ProductosPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{formatPrice(p.price)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">{formatPrice(p.price)}</span>
+                          <button
+                            onClick={() => setCalcProduct(p)}
+                            title="Calcular precio"
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 text-zinc-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
+                          >
+                            <Calculator className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={p.is_active ? "default" : "secondary"}
                           className="cursor-pointer" onClick={() => handleToggleActive(p)}>
@@ -335,6 +360,28 @@ export default function ProductosPage() {
         onClose={() => setDetailProductId(null)}
         isAdmin={true}
       />
+
+      {/* Quick price calculator modal */}
+      <Dialog open={!!calcProduct} onOpenChange={(v) => !v && setCalcProduct(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-orange-500" />
+              <span className="font-mono text-sm text-zinc-400">{calcProduct?.reference}</span>
+              <span className="truncate">{calcProduct?.name}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-zinc-400 -mt-1 mb-1">
+            Precio actual: <strong className="text-zinc-700">{calcProduct ? formatPrice(calcProduct.price) : ""}</strong>
+          </p>
+          {calcProduct && (
+            <PriceCalculator
+              currentPrice={calcProduct.price}
+              onApply={(price) => handleApplyPrice(calcProduct.id, price)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

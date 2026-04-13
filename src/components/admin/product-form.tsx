@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, Save, ArrowLeft, Upload, Star, Loader2, ImageOff } from "lucide-react";
+import { PriceCalculator } from "@/components/admin/PriceCalculator";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -338,7 +339,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                   />
                 </div>
                 <div>
-                  <Label>Precio (COP) *</Label>
+                  <Label>Precio publicado (COP) *</Label>
                   <Input
                     type="number"
                     value={form.price}
@@ -347,6 +348,10 @@ export function ProductForm({ productId }: ProductFormProps) {
                   />
                 </div>
               </div>
+              <PriceCalculator
+                currentPrice={parseInt(form.price) || undefined}
+                onApply={(price) => setForm({ ...form, price: String(price) })}
+              />
               <div>
                 <Label>Nombre *</Label>
                 <Input

@@ -77,6 +77,8 @@ export default function NuevaCotizacionPage() {
   // Product search
   const [productSearch, setProductSearch] = useState("");
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const [inlineSearch, setInlineSearch] = useState("");
+  const [showInlineDropdown, setShowInlineDropdown] = useState(false);
 
   // New client dialog
   const [showClientDialog, setShowClientDialog] = useState(false);
@@ -260,6 +262,14 @@ export default function NuevaCotizacionPage() {
       p.reference.toLowerCase().includes(productSearch.toLowerCase())
   );
 
+  const inlineFiltered = inlineSearch.trim()
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(inlineSearch.toLowerCase()) ||
+          p.reference.toLowerCase().includes(inlineSearch.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
   return (
     <>
       <div className="flex items-center gap-4">
@@ -276,25 +286,62 @@ export default function NuevaCotizacionPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Line items */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Productos</CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowProductDialog(true)}
-                >
-                  <Search className="mr-1 h-3 w-3" /> Del catálogo
-                </Button>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between mb-3">
+                <CardTitle>Productos</CardTitle>
                 <Button variant="outline" size="sm" onClick={addManualItem}>
                   <Plus className="mr-1 h-3 w-3" /> Manual
                 </Button>
+              </div>
+              {/* Inline product search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                <Input
+                  value={inlineSearch}
+                  onChange={(e) => {
+                    setInlineSearch(e.target.value);
+                    setShowInlineDropdown(true);
+                  }}
+                  onFocus={() => setShowInlineDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowInlineDropdown(false), 150)}
+                  placeholder="Buscar por nombre o referencia y agregar…"
+                  className="pl-9"
+                />
+                {showInlineDropdown && inlineFiltered.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg overflow-hidden">
+                    {inlineFiltered.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onMouseDown={() => {
+                          addProduct(p);
+                          setInlineSearch("");
+                          setShowInlineDropdown(false);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-50 border-b border-zinc-100 last:border-0"
+                      >
+                        <div>
+                          <span className="font-mono text-[10px] font-bold text-zinc-400 mr-2 uppercase">{p.reference}</span>
+                          <span className="font-medium text-zinc-800">{p.name}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-zinc-500 shrink-0 ml-3">
+                          {formatPrice(p.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showInlineDropdown && inlineSearch.trim() && inlineFiltered.length === 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg px-3 py-3 text-sm text-zinc-400">
+                    Sin resultados · <button type="button" className="text-orange-500 hover:underline" onMouseDown={addManualItem}>agregar manualmente</button>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
               {items.length === 0 && (
                 <p className="py-8 text-center text-zinc-400">
-                  Agrega productos del catálogo o manualmente
+                  Busca un producto arriba o agrégalo manualmente
                 </p>
               )}
 

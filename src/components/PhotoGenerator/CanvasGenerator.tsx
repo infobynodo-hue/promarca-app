@@ -5,13 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Upload,
   Sparkles,
@@ -21,6 +15,7 @@ import {
   X,
   Image as ImageIcon,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { generateProductPhotos, blobToDataUrl } from "@/lib/canvas-photo";
@@ -61,6 +56,9 @@ function SingleGenerator() {
   const [dragging, setDragging] = useState(false);
   const [products, setProducts] = useState<{ id: string; name: string; reference: string }[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>("none");
+  const [productQuery, setProductQuery] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedProductName, setSelectedProductName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -202,23 +200,71 @@ function SingleGenerator() {
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
         </div>
 
-        {/* Product selector */}
+        {/* Product search selector */}
         <div>
           <label className="text-xs font-medium text-zinc-600 mb-1.5 block">Asignar al producto (opcional)</label>
-          <Select value={selectedProduct} onValueChange={(v) => setSelectedProduct(v ?? "none")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar producto…" />
-            </SelectTrigger>
-            <SelectContent className="max-h-64">
-              <SelectItem value="none">No asignar ahora</SelectItem>
-              {products.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="font-mono text-xs text-zinc-400 mr-2">{p.reference}</span>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+            <Input
+              value={productQuery}
+              onChange={(e) => {
+                setProductQuery(e.target.value);
+                if (e.target.value === "") { setSelectedProduct("none"); setSelectedProductName(""); }
+                setShowProductDropdown(true);
+              }}
+              onFocus={() => setShowProductDropdown(true)}
+              onBlur={() => setTimeout(() => setShowProductDropdown(false), 150)}
+              placeholder="Buscar por nombre o referencia…"
+              className="pl-9"
+            />
+            {selectedProduct !== "none" && (
+              <button
+                type="button"
+                onClick={() => { setSelectedProduct("none"); setSelectedProductName(""); setProductQuery(""); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-200 hover:bg-zinc-300"
+              >
+                <X className="h-3 w-3 text-zinc-600" />
+              </button>
+            )}
+            {showProductDropdown && productQuery.trim() && (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+                {products
+                  .filter((p) =>
+                    p.name.toLowerCase().includes(productQuery.toLowerCase()) ||
+                    p.reference.toLowerCase().includes(productQuery.toLowerCase())
+                  )
+                  .slice(0, 8)
+                  .map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={() => {
+                        setSelectedProduct(p.id);
+                        setSelectedProductName(p.name);
+                        setProductQuery(`${p.reference} · ${p.name}`);
+                        setShowProductDropdown(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-zinc-50 border-b border-zinc-100 last:border-0"
+                    >
+                      <span className="font-mono text-[10px] font-bold text-zinc-400 uppercase shrink-0">{p.reference}</span>
+                      <span className="text-zinc-800 truncate">{p.name}</span>
+                    </button>
+                  ))
+                }
+                {products.filter((p) =>
+                  p.name.toLowerCase().includes(productQuery.toLowerCase()) ||
+                  p.reference.toLowerCase().includes(productQuery.toLowerCase())
+                ).length === 0 && (
+                  <div className="px-3 py-3 text-sm text-zinc-400">Sin resultados</div>
+                )}
+              </div>
+            )}
+          </div>
+          {selectedProduct !== "none" && (
+            <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" /> Producto seleccionado: {selectedProductName}
+            </p>
+          )}
         </div>
 
         {/* Generate button */}

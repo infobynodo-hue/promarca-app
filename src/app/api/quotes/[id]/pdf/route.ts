@@ -481,13 +481,6 @@ ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(func
     ${productCards}
   </div>
 
-  <!-- ── TOTAL SUMMARY ── -->
-  <div class="section">
-    <div class="summary-box">
-      ${summaryRows}
-    </div>
-  </div>
-
   <!-- ── RECORDATORIO ── -->
   <div class="section">
     <div class="recordatorio-box">

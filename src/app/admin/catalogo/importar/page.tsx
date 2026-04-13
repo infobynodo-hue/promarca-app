@@ -71,7 +71,12 @@ export default function ImportarPage() {
       const formData = new FormData();
       formData.append("pdf", selectedFile);
 
-      const res = await fetch("/api/import-pdf", { method: "POST", body: formData });
+      // Llamamos a Supabase Edge Function (sin timeout de Vercel)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const res = await fetch(`${supabaseUrl}/functions/v1/import-pdf`, {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
 
       if (!res.ok) {

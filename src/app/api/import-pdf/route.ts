@@ -24,9 +24,8 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey });
 
-    // Usamos claude-3-5-sonnet: rápido (~15-20s) y disponible en todos los planes
     const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-opus-4-5",
       max_tokens: 8000,
       messages: [
         {

@@ -14,9 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText, AlertCircle } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, CheckCircle2, Trash2, FileText, AlertCircle, Sparkles, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { extractImagesFromPDF, uploadPDFToStorage, type ExtractedImage } from "@/lib/pdf-image-extractor";
 
 interface ExtractedProduct {
   reference: string;
@@ -39,6 +40,13 @@ export default function ImportarPage() {
   const [products, setProducts] = useState<ExtractedProduct[]>([]);
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState(false);
+  const [importedProductIds, setImportedProductIds] = useState<Record<string, string>>({});
+
+  // PDF image extraction state
+  const [extractingImages, setExtractingImages] = useState(false);
+  const [extractImageProgress, setExtractImageProgress] = useState<{ page: number; total: number } | null>(null);
+  const [extractedImages, setExtractedImages] = useState<ExtractedImage[]>([]);
+  const [showImageExtractor, setShowImageExtractor] = useState(false);
 
   useEffect(() => {
     supabase
@@ -123,7 +131,10 @@ export default function ImportarPage() {
       is_active: true,
     }));
 
-    const { error } = await supabase.from("products").insert(payload);
+    const { data: inserted, error } = await supabase
+      .from("products")
+      .insert(payload)
+      .select("id, reference");
 
     if (error) {
       toast.error("Error al importar: " + error.message);
@@ -131,9 +142,42 @@ export default function ImportarPage() {
       return;
     }
 
+    // Build reference → id map for image extraction linking
+    const idMap: Record<string, string> = {};
+    for (const row of inserted ?? []) {
+      idMap[row.reference] = row.id;
+    }
+    setImportedProductIds(idMap);
+
     toast.success(`${payload.length} productos importados correctamente`);
     setImporting(false);
     setDone(true);
+  };
+
+  // Extract images from the PDF using PDF.js (runs in browser)
+  const handleExtractImages = async () => {
+    if (!selectedFile) return;
+    setExtractingImages(true);
+    setExtractedImages([]);
+    setShowImageExtractor(false);
+    try {
+      const images = await extractImagesFromPDF(selectedFile, (page, total) => {
+        setExtractImageProgress({ page, total });
+      });
+      const useful = images.filter((i) => i.quality !== "low");
+      setExtractedImages(useful);
+      setShowImageExtractor(true);
+      if (useful.length === 0) {
+        toast.error("No se encontraron imágenes de buena calidad en el PDF");
+      } else {
+        toast.success(`${useful.length} imágenes extraídas del PDF`);
+      }
+    } catch (err: any) {
+      toast.error("Error al extraer imágenes: " + err.message);
+    } finally {
+      setExtractingImages(false);
+      setExtractImageProgress(null);
+    }
   };
 
   const updateProduct = (i: number, field: keyof ExtractedProduct, value: any) => {
@@ -184,7 +228,7 @@ export default function ImportarPage() {
               ) : (
                 <div className="text-center">
                   <p className="text-sm font-medium text-zinc-600">Clic para seleccionar</p>
-                  <p className="text-xs text-zinc-400">PDF · máx. 10 MB</p>
+                  <p className="text-xs text-zinc-400">PDF · hasta 50 MB</p>
                 </div>
               )}
             </div>
@@ -380,15 +424,83 @@ export default function ImportarPage() {
       )}
 
       {done && (
-        <div className="mt-6 flex items-center gap-4 rounded-lg border border-green-200 bg-green-50 p-4">
-          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="font-medium text-green-800">Importación completada</p>
-            <p className="text-sm text-green-600">Los productos ya están disponibles en el catálogo.</p>
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center gap-4 rounded-lg border border-green-200 bg-green-50 p-4">
+            <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium text-green-800">Importación completada</p>
+              <p className="text-sm text-green-600">Los productos ya están disponibles en el catálogo.</p>
+            </div>
+            <div className="flex gap-2">
+              {selectedFile && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExtractImages}
+                  disabled={extractingImages}
+                  className="gap-1.5"
+                >
+                  {extractingImages ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {extractImageProgress ? `Pág. ${extractImageProgress.page}/${extractImageProgress.total}` : "Extrayendo…"}</>
+                  ) : (
+                    <><ImageIcon className="h-3.5 w-3.5" /> Extraer fotos del PDF</>
+                  )}
+                </Button>
+              )}
+              <Link href="/admin/catalogo">
+                <Button variant="outline" size="sm">Ver catálogo</Button>
+              </Link>
+            </div>
           </div>
-          <Link href="/admin/catalogo">
-            <Button variant="outline" size="sm">Ver catálogo</Button>
-          </Link>
+
+          {/* Extracted images from PDF → send to photo generator */}
+          {showImageExtractor && extractedImages.length > 0 && (
+            <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-orange-500" />
+                  <div>
+                    <p className="font-semibold text-zinc-800">{extractedImages.length} imágenes extraídas del PDF</p>
+                    <p className="text-xs text-zinc-500">Revisá cuáles son fotos de productos y generá las 3 versiones para el catálogo</p>
+                  </div>
+                </div>
+                <Link href="/admin/fotos">
+                  <Button className="gap-2 bg-orange-500 hover:bg-orange-600">
+                    <Sparkles className="h-4 w-4" /> Ir al generador de fotos
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Grid preview */}
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                {extractedImages.map((img, i) => (
+                  <div key={i} className="relative">
+                    <div className="aspect-square overflow-hidden rounded-lg border border-zinc-200 bg-white">
+                      <img src={img.dataUrl} alt={`Imagen ${i + 1}`} className="h-full w-full object-contain p-1" />
+                    </div>
+                    <div className="absolute top-1 right-1">
+                      <span className={`inline-block h-2 w-2 rounded-full ${
+                        img.quality === "high" ? "bg-green-400" :
+                        img.quality === "medium" ? "bg-yellow-400" : "bg-red-400"
+                      }`} title={`Calidad: ${img.quality}`} />
+                    </div>
+                    <p className="mt-0.5 text-center text-[10px] text-zinc-400">p.{img.pageNumber}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-4 text-xs text-zinc-500">
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400 inline-block" /> Alta calidad</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400 inline-block" /> Calidad media</span>
+                <span className="text-zinc-400">· Las de baja calidad se omiten</span>
+              </div>
+
+              <p className="text-xs text-zinc-500 bg-white rounded-lg border border-zinc-200 p-3">
+                💡 <strong>Siguiente paso:</strong> Andá a <strong>Fotos con IA</strong> en el menú lateral, subí las fotos de mayor calidad del proveedor (o las que extrajiste del PDF) y el sistema genera automáticamente las 3 versiones para el catálogo y las asigna al producto.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </>

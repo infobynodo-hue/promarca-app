@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, FileDown, Copy, Trash2 } from "lucide-react";
+import { Plus, FileDown, Copy, Trash2, LayoutTemplate } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -105,11 +105,18 @@ export default function CotizacionesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Cotizaciones</h1>
           <p className="text-sm text-zinc-500">{quotes.length} cotizaciones</p>
         </div>
-        <Link href="/admin/cotizaciones/nueva">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Nueva cotización
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/cotizaciones/plantilla">
+            <Button variant="outline">
+              <LayoutTemplate className="mr-2 h-4 w-4" /> Plantilla PDF
+            </Button>
+          </Link>
+          <Link href="/admin/cotizaciones/nueva">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Nueva cotización
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="mt-6">

@@ -22,9 +22,9 @@ import {
   Plus,
   Trash2,
   Save,
-  FileDown,
   Search,
   UserPlus,
+  LayoutTemplate,
 } from "lucide-react";
 import {
   Dialog,
@@ -187,8 +187,17 @@ export default function NuevaCotizacionPage() {
 
   // Save quote
   const handleSave = async () => {
+    if (!clientId) {
+      toast.error("Selecciona un cliente antes de continuar");
+      return;
+    }
     if (items.length === 0) {
       toast.error("Agrega al menos un producto");
+      return;
+    }
+    const emptyName = items.find((item) => !item.product_name.trim());
+    if (emptyName) {
+      toast.error("Todos los productos deben tener un nombre");
       return;
     }
 
@@ -494,10 +503,29 @@ export default function NuevaCotizacionPage() {
             </CardContent>
           </Card>
 
-          <Button onClick={handleSave} className="w-full" disabled={saving}>
+          {/* Validation hints */}
+          {!clientId && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠️ Selecciona un cliente para poder guardar
+            </p>
+          )}
+          {items.length === 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠️ Agrega al menos un producto
+            </p>
+          )}
+
+          <Button onClick={handleSave} className="w-full" disabled={saving || !clientId || items.length === 0}>
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Guardando..." : "Crear cotización"}
           </Button>
+
+          <Link href="/admin/cotizaciones/plantilla" target="_blank">
+            <Button variant="ghost" className="w-full text-zinc-500" size="sm">
+              <LayoutTemplate className="mr-2 h-4 w-4" />
+              Ver plantilla actual
+            </Button>
+          </Link>
         </div>
       </div>
 

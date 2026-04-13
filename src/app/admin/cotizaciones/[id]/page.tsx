@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, FileDown } from "lucide-react";
+import { ArrowLeft, FileDown, LayoutTemplate } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -72,8 +72,8 @@ export default function CotizacionDetailPage({
   };
 
   const handleDownloadPDF = () => {
-    // Opens the PDF generation API route in a new tab
-    window.open(`/api/quotes/${id}/pdf`, "_blank");
+    // Opens HTML in new tab with auto-print dialog (browser saves as PDF)
+    window.open(`/api/quotes/${id}/pdf?download=1`, "_blank");
   };
 
   if (loading) return <p className="text-zinc-500">Cargando...</p>;
@@ -117,6 +117,11 @@ export default function CotizacionDetailPage({
               <SelectItem value="expired">Expirada</SelectItem>
             </SelectContent>
           </Select>
+          <Link href="/admin/cotizaciones/plantilla" target="_blank">
+            <Button variant="ghost" size="sm" title="Ver/editar plantilla PDF">
+              <LayoutTemplate className="mr-1.5 h-4 w-4" /> Plantilla
+            </Button>
+          </Link>
           <Button variant="outline" onClick={handleDownloadPDF}>
             <FileDown className="mr-2 h-4 w-4" /> Descargar PDF
           </Button>

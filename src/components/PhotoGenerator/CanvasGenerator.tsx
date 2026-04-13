@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,7 +71,7 @@ function SingleGenerator() {
       .then(({ data }) => setProducts(data ?? []));
   });
 
-  const loadFile = (f: File) => {
+  const loadFile = useCallback((f: File) => {
     if (!f.type.startsWith("image/")) { toast.error("Solo se aceptan imágenes"); return; }
     setFile(f);
     setResult(null);
@@ -79,7 +79,27 @@ function SingleGenerator() {
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(f);
-  };
+  }, []);
+
+  // ── Paste from clipboard ────────────────────────────────────────────────────
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) {
+            toast.info("Imagen pegada ✓");
+            loadFile(f);
+          }
+          break;
+        }
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [loadFile]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -194,7 +214,10 @@ function SingleGenerator() {
                 <Upload className="h-6 w-6 text-orange-500" />
               </div>
               <p className="font-medium text-zinc-700">Arrastra la foto del proveedor</p>
-              <p className="text-sm text-zinc-500">JPG, PNG, WebP · sin límite de tamaño</p>
+              <p className="text-sm text-zinc-500">JPG, PNG, WebP · o pega con</p>
+              <kbd className="rounded-md border border-zinc-200 bg-zinc-100 px-2 py-0.5 font-mono text-xs text-zinc-500">
+                ⌘V / Ctrl+V
+              </kbd>
             </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />

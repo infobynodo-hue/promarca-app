@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Category, Subcategory, ProductImage } from "@/lib/types";
@@ -130,13 +130,11 @@ export function ProductForm({ productId }: ProductFormProps) {
     setColors(updated);
   };
 
-  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Upload any File object (shared by file input + paste) ───────────────────
+  const uploadImageFile = useCallback(async (file: File) => {
     if (!productId) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-
     setUploadingImage(true);
-    const ext = file.name.split(".").pop();
+    const ext = file.name.split(".").pop() ?? "jpg";
     const path = `${productId}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
@@ -166,11 +164,38 @@ export function ProductForm({ productId }: ProductFormProps) {
       toast.error("Error al guardar imagen: " + dbError.message);
     } else {
       setImages((prev) => [...prev, inserted]);
-      toast.success("Imagen subida");
+      toast.success("Imagen subida ✓");
     }
-
     setUploadingImage(false);
+  }, [productId, images.length, supabase]);
+
+  // ── Paste from clipboard ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEdit) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            toast.info("Pegando imagen…");
+            uploadImageFile(file);
+          }
+          break;
+        }
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [isEdit, uploadImageFile]);
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!productId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
     if (fileInputRef.current) fileInputRef.current.value = "";
+    await uploadImageFile(file);
   };
 
   const handleDeleteImage = async (img: ProductImage) => {
@@ -361,7 +386,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                 <div>
                   <CardTitle>Imágenes</CardTitle>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    La imagen con ⭐ se muestra en el catálogo
+                    ⭐ principal · arrastra, sube o <kbd className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[10px] text-zinc-500">⌘V</kbd> para pegar
                   </p>
                 </div>
                 <div>
@@ -394,7 +419,7 @@ export function ProductForm({ productId }: ProductFormProps) {
                     className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-200 p-8 cursor-pointer hover:border-orange-300 hover:bg-orange-50/50 transition-colors"
                   >
                     <ImageOff className="h-8 w-8 text-zinc-300" />
-                    <p className="text-sm text-zinc-400">Sin imágenes. Clic para subir.</p>
+                    <p className="text-sm text-zinc-400">Clic para subir o pega con <kbd className="rounded bg-zinc-100 px-1 font-mono text-xs">Ctrl+V</kbd></p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">

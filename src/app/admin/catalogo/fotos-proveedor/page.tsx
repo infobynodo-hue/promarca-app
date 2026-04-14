@@ -39,9 +39,11 @@ interface FetchResult {
 
 interface BulkResult {
   processed: number;
+  total: number;
   withImages: number;
   noImages: number;
   details: FetchResult[];
+  nextOffset: number | null;
 }
 
 interface SyncResult {
@@ -168,25 +170,46 @@ export default function FotosProveedorPage() {
     setBulkLoading(true);
     setBulkResult(null);
     setBulkProgress(0);
-    setBulkTotal(productsWithout.length);
+    setBulkTotal(0);
+
+    const BATCH_SIZE = 20;
+    let offset = 0;
+    let accumulated: BulkResult = { processed: 0, total: 0, withImages: 0, noImages: 0, details: [], nextOffset: null };
 
     try {
-      const res = await fetch("/api/supplier/fetch-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }),
-      });
+      while (true) {
+        const res = await fetch("/api/supplier/fetch-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batch: true, offset, limit: BATCH_SIZE }),
+        });
 
-      const data: BulkResult = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) {
-        toast.error((data as any).error ?? "Error en la búsqueda");
-        return;
+        if (!res.ok) {
+          toast.error(data.error ?? "Error en la búsqueda");
+          break;
+        }
+
+        // Update accumulated results
+        accumulated = {
+          processed: accumulated.processed + data.processed,
+          total: data.total,
+          withImages: accumulated.withImages + data.withImages,
+          noImages: accumulated.noImages + data.noImages,
+          details: [...accumulated.details, ...(data.details ?? [])],
+          nextOffset: data.nextOffset,
+        };
+
+        setBulkProgress(accumulated.processed);
+        setBulkTotal(data.total);
+        setBulkResult({ ...accumulated });
+
+        if (data.nextOffset === null) break;
+        offset = data.nextOffset;
       }
 
-      setBulkResult(data);
-      setBulkProgress(data.processed);
-      toast.success(`Completado: ${data.withImages} productos con imágenes encontradas`);
+      toast.success(`Completado: ${accumulated.withImages} productos con imágenes encontradas`);
       await loadData();
     } catch {
       toast.error("Error de red al buscar imágenes");

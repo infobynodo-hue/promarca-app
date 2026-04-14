@@ -204,54 +204,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    // All products mode
-    if (body.all === true) {
-      // Get products with NO entries in product_images
-      const { data: products, error: productsError } = await supabase
+    // Batch mode: { batch: true, offset: 0, limit: 20 }
+    if (body.batch === true) {
+      const offset: number = body.offset ?? 0;
+      const limit: number  = body.limit  ?? 20;
+
+      // Get all products without images (sorted for stable pagination)
+      const { data: products } = await supabase
         .from("products")
         .select("id, reference, name")
         .eq("is_active", true)
-        .order("name");
+        .order("reference");
 
-      if (productsError) {
-        return NextResponse.json({ error: productsError.message }, { status: 500 });
-      }
-
-      // Filter: only products without images
       const { data: imagesData } = await supabase
         .from("product_images")
         .select("product_id");
 
-      const productsWithImages = new Set((imagesData ?? []).map((img) => img.product_id));
-      const productsWithoutImages = (products ?? []).filter(
-        (p) => !productsWithImages.has(p.id)
-      );
+      const withImgSet = new Set((imagesData ?? []).map((r) => r.product_id));
+      const allWithout = (products ?? []).filter((p) => !withImgSet.has(p.id));
+      const total      = allWithout.length;
+      const slice      = allWithout.slice(offset, offset + limit);
 
       const details: FetchResult[] = [];
-      let withImages = 0;
-      let noImages = 0;
+      let withImages = 0, noImages = 0;
 
-      for (const product of productsWithoutImages) {
+      for (const product of slice) {
         const result = await fetchImagesForProduct(
-          product.id,
-          product.reference,
-          product.name,
-          supabase
+          product.id, product.reference, product.name, supabase
         );
         details.push(result);
-        if (result.found) {
-          withImages++;
-        } else {
-          noImages++;
-        }
+        if (result.found) withImages++; else noImages++;
       }
 
       return NextResponse.json({
-        processed: productsWithoutImages.length,
+        processed: slice.length,
+        total,
+        offset,
+        nextOffset: offset + slice.length < total ? offset + limit : null,
         withImages,
         noImages,
         details,
       });
+    }
+
+    // Legacy all mode (kept for compatibility)
+    if (body.all === true) {
+      return NextResponse.json(
+        { error: "Usa batch:true con offset/limit para evitar timeouts" },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ error: "Parámetros inválidos" }, { status: 400 });

@@ -13,6 +13,7 @@ import {
   LogOut,
   ExternalLink,
   Plug,
+  Megaphone,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/admin/catalogo", label: "Productos", icon: Package },
   { href: "/admin/catalogo/categorias", label: "Categorías", icon: FolderOpen },
   { href: "/admin/cotizaciones", label: "Cotizaciones", icon: FileText },
+  { href: "/admin/campanas", label: "Campañas B2C", icon: Megaphone },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/mockups", label: "Mockups", icon: Palette },
   { href: "/admin/fotos", label: "Fotos con IA", icon: Sparkles },

@@ -12,6 +12,7 @@ import {
   Sparkles,
   LogOut,
   ExternalLink,
+  Plug,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/mockups", label: "Mockups", icon: Palette },
   { href: "/admin/fotos", label: "Fotos con IA", icon: Sparkles },
+  { href: "/admin/integraciones/shopify", label: "Integraciones", icon: Plug },
 ];
 
 export function AdminSidebar() {

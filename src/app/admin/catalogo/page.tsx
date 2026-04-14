@@ -21,13 +21,21 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Pencil, Trash2, Search, ExternalLink, FileUp,
-  LayoutGrid, List, ImageIcon, Archive, PackageOpen, Calculator,
+  LayoutGrid, List, ImageIcon, Archive, PackageOpen, Calculator, ShoppingBag, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
+interface ShopifySync {
+  shopify_id: string | null;
+  shopify_url: string | null;
+  status: string | null;
+  last_synced_at: string | null;
+}
+
 interface ProductWithImages extends Omit<Product, "product_images"> {
   product_images?: { id: string; storage_path: string; is_primary: boolean; display_order: number; product_id: string; alt_text: string | null }[];
+  shopify_syncs?: ShopifySync[];
 }
 
 export default function ProductosPage() {
@@ -45,12 +53,13 @@ export default function ProductosPage() {
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
   // Price calculator modal (quick price update from list)
   const [calcProduct, setCalcProduct] = useState<ProductWithImages | null>(null);
+  const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
 
   const fetchData = async () => {
     const [prodRes, catRes] = await Promise.all([
       supabase
         .from("products")
-        .select("*, category:categories(name, slug), product_colors(*), product_images(id, storage_path, is_primary, display_order)")
+        .select("*, category:categories(name, slug), product_colors(*), product_images(id, storage_path, is_primary, display_order), shopify_syncs(shopify_id, shopify_url, status, last_synced_at)")
         .order("name"),
       supabase.from("categories").select("*").order("display_order"),
     ]);
@@ -80,6 +89,32 @@ export default function ProductosPage() {
   const handleToggleActive = async (product: Product) => {
     await supabase.from("products").update({ is_active: !product.is_active }).eq("id", product.id);
     fetchData();
+  };
+
+  const handleShopifySync = async (productId: string) => {
+    setSyncingProducts((prev) => new Set(prev).add(productId));
+    try {
+      const res = await fetch("/api/shopify/sync-product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al sincronizar con Shopify");
+        return;
+      }
+      toast.success("Producto sincronizado con Shopify");
+      fetchData();
+    } catch {
+      toast.error("Error de red al sincronizar con Shopify");
+    } finally {
+      setSyncingProducts((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+    }
   };
 
   const formatPrice = (price: number) =>
@@ -202,13 +237,14 @@ export default function ProductosPage() {
                   <TableHead>Categoría</TableHead>
                   <TableHead>Precio</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead className="w-10">Shopify</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-zinc-400">
+                    <TableCell colSpan={8} className="py-12 text-center text-zinc-400">
                       No se encontraron productos
                     </TableCell>
                   </TableRow>
@@ -260,6 +296,30 @@ export default function ProductosPage() {
                           className="cursor-pointer" onClick={() => handleToggleActive(p)}>
                           {p.is_active ? "Activo" : "Inactivo"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const sync = (p.shopify_syncs ?? [])[0];
+                          const isSyncing = syncingProducts.has(p.id);
+                          const isSynced = sync?.status === "synced" && sync?.shopify_id;
+                          return (
+                            <button
+                              onClick={() => handleShopifySync(p.id)}
+                              disabled={isSyncing}
+                              title={isSynced ? `Sincronizado en Shopify\n${sync.shopify_url ?? ""}` : "Sincronizar en Shopify"}
+                              className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors
+                                ${isSynced
+                                  ? "border-green-300 bg-green-50 text-green-600 hover:bg-green-100"
+                                  : "border-zinc-200 text-zinc-400 hover:border-orange-300 hover:text-orange-500"
+                                } disabled:opacity-50`}
+                            >
+                              {isSyncing
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <ShoppingBag className="h-3.5 w-3.5" />
+                              }
+                            </button>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Link href={`/admin/catalogo/${p.id}`}>

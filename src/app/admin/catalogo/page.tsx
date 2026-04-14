@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Pencil, Trash2, Search, ExternalLink, FileUp,
-  LayoutGrid, List, ImageIcon, Archive, PackageOpen, Calculator, ShoppingBag, Loader2,
+  LayoutGrid, List, ImageIcon, Archive, PackageOpen, Calculator, ShoppingBag, Loader2, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -165,6 +165,11 @@ export default function ProductosPage() {
           <p className="text-sm text-zinc-500">{products.length} productos en catálogo</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/catalogo/fotos-proveedor">
+            <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700">
+              <Sparkles className="mr-2 h-4 w-4" /> Importar fotos del proveedor
+            </Button>
+          </Link>
           <Link href="/admin/catalogo/subir-imagenes">
             <Button variant="outline">
               <ImageIcon className="mr-2 h-4 w-4" /> Subir imágenes (ZIP)

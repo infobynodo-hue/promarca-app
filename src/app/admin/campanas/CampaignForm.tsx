@@ -7,13 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Trash2, ExternalLink, Loader2 } from "lucide-react";
@@ -22,6 +15,7 @@ interface SimpleProduct {
   name: string;
   reference: string;
   price: number;
+  primaryImageUrl: string | null;
 }
 
 interface Benefit {
@@ -69,6 +63,10 @@ export function CampaignForm({ initialData }: Props) {
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [saving, setSaving] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [customImageFile, setCustomImageFile] = useState<File | null>(null);
+  const [customImageUrl, setCustomImageUrl] = useState<string | null>(initialData?.brand_logo_url ? null : null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [form, setForm] = useState<CampaignData>({
     product_id: initialData?.product_id ?? null,
@@ -94,9 +92,21 @@ export function CampaignForm({ initialData }: Props) {
   useEffect(() => {
     supabase
       .from("products")
-      .select("id, name, reference, price")
+      .select("id, name, reference, price, product_images(storage_path, is_primary, display_order)")
+      .eq("is_active", true)
       .order("name")
-      .then(({ data }) => setProducts(data ?? []));
+      .then(({ data }) => {
+        const mapped = (data ?? []).map((p: any) => {
+          const imgs: any[] = p.product_images ?? [];
+          const sorted = [...imgs].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+          const primary = sorted.find((i) => i.is_primary) ?? sorted[0];
+          const primaryImageUrl = primary?.storage_path
+            ? supabase.storage.from("products").getPublicUrl(primary.storage_path).data.publicUrl
+            : null;
+          return { id: p.id, name: p.name, reference: p.reference, price: p.price, primaryImageUrl };
+        });
+        setProducts(mapped);
+      });
   }, []);
 
   // Auto-generate slug from headline
@@ -203,12 +213,35 @@ export function CampaignForm({ initialData }: Props) {
     }
   };
 
+  const handleCustomImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const path = `campaign-images/${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, "_")}`;
+      const { error } = await supabase.storage.from("products").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const url = supabase.storage.from("products").getPublicUrl(path).data.publicUrl;
+      setCustomImageUrl(url);
+      setCustomImageFile(file);
+      toast.success("Imagen subida");
+    } catch (err: unknown) {
+      toast.error("Error al subir imagen");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const fmtPrice = (n: number) =>
     new Intl.NumberFormat("es-CO", {
       style: "currency",
       currency: "COP",
       minimumFractionDigits: 0,
     }).format(n);
+
+  const filteredProducts = products.filter((p) => {
+    if (!productSearch) return true;
+    const q = productSearch.toLowerCase();
+    return p.name.toLowerCase().includes(q) || p.reference.toLowerCase().includes(q);
+  });
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -218,33 +251,96 @@ export function CampaignForm({ initialData }: Props) {
           <CardTitle className="text-base">1. Producto base</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
+          {/* Product gallery picker */}
+          <div className="space-y-3">
             <Label>Producto del catálogo</Label>
-            <Select
-              value={form.product_id ?? ""}
-              onValueChange={(v) => set("product_id", v || null)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un producto..." />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    [{p.reference}] {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Buscar por nombre o referencia..."
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1 sm:grid-cols-4">
+              {filteredProducts.map((p) => {
+                const isSelected = form.product_id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => set("product_id", p.id)}
+                    className={`group flex flex-col rounded-xl border-2 overflow-hidden text-left transition-all
+                      ${isSelected
+                        ? "border-orange-500 shadow-md shadow-orange-100"
+                        : "border-zinc-200 hover:border-orange-300"
+                      }`}
+                  >
+                    <div className="aspect-square w-full bg-zinc-100 overflow-hidden">
+                      {p.primaryImageUrl ? (
+                        <img
+                          src={p.primaryImageUrl}
+                          alt={p.name}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-zinc-300 text-[10px] text-center px-1">
+                          Sin foto
+                        </div>
+                      )}
+                    </div>
+                    <div className={`px-1.5 py-1 ${isSelected ? "bg-orange-50" : "bg-white"}`}>
+                      <p className="font-mono text-[9px] text-orange-500 font-bold truncate">{p.reference}</p>
+                      <p className="text-[10px] text-zinc-700 leading-tight line-clamp-2">{p.name}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {filteredProducts.length === 0 && (
+              <p className="text-sm text-zinc-400 text-center py-4">No se encontraron productos</p>
+            )}
           </div>
+
+          {/* Selected product summary */}
           {selectedProduct && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm space-y-1">
-              <p className="font-medium text-zinc-800">{selectedProduct.name}</p>
-              <p className="text-zinc-500">
-                Ref: <span className="font-mono">{selectedProduct.reference}</span>
-              </p>
-              <p className="text-zinc-700">Precio base: {fmtPrice(selectedProduct.price)}</p>
+            <div className="flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
+              {selectedProduct.primaryImageUrl && (
+                <img src={selectedProduct.primaryImageUrl} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="font-medium text-zinc-800 truncate">{selectedProduct.name}</p>
+                <p className="text-xs text-zinc-500 font-mono">{selectedProduct.reference} · {fmtPrice(selectedProduct.price)}</p>
+              </div>
             </div>
           )}
+
+          {/* Custom image upload */}
+          <div className="space-y-2 border-t border-zinc-100 pt-4">
+            <Label>Imagen personalizada para la campaña <span className="text-zinc-400 font-normal">(opcional — reemplaza la foto del catálogo)</span></Label>
+            <div className="flex items-center gap-3">
+              <label className="cursor-pointer flex items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-orange-400 hover:text-orange-500 transition-colors">
+                {uploadingImage ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Subiendo...</>
+                ) : (
+                  <><span className="text-lg">📷</span> Subir imagen</>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCustomImageUpload(file);
+                  }}
+                />
+              </label>
+              {(customImageUrl) && (
+                <img src={customImageUrl} alt="preview" className="h-12 w-12 rounded-lg object-cover border border-zinc-200" />
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

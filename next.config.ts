@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {},
   async redirects() {
     return [
       { source: "/admin", destination: "/admin/dashboard", permanent: false },

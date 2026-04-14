@@ -310,15 +310,14 @@ async function extractPageImages(
   pageCanvas.height = H;
   const ctx = pageCanvas.getContext("2d")!;
 
-  try {
-    await page.render({ canvasContext: ctx, viewport }).promise;
-  } catch {
-    return [];
-  }
+  // Render — throws with a useful message if worker isn't available
+  await page.render({ canvasContext: ctx, viewport }).promise;
 
   // ── Try approach 1: text-based ──────────────────────────────────────────
-  const textResults = await textBasedExtract(page, pageCanvas, viewport, W, H, pageNumber);
-  if (textResults.length >= 2) return textResults;
+  try {
+    const textResults = await textBasedExtract(page, pageCanvas, viewport, W, H, pageNumber);
+    if (textResults.length >= 2) return textResults;
+  } catch { /* ignore, fall through */ }
 
   // ── Fallback: visual grid detection ─────────────────────────────────────
   return visualGridExtract(pageCanvas, W, H, pageNumber);
@@ -330,8 +329,8 @@ export async function extractImagesFromPDF(
   onProgress?: (page: number, total: number) => void
 ): Promise<ExtractedImage[]> {
   const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  // Use local worker (copied to public/) — CDN may not have the exact version
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
   const buffer = await file.arrayBuffer();
   const pdf    = await pdfjsLib.getDocument({ data: buffer }).promise;

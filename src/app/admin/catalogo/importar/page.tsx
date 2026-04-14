@@ -158,8 +158,13 @@ export default function ImportarPage() {
 
   const extractImages = async (file: File): Promise<ExtractedImage[]> => {
     try {
-      return await extractImagesFromPDF(file);
-    } catch {
+      return await extractImagesFromPDF(file, (page, total) => {
+        // Surface progress so the user sees activity
+        console.log(`[img] page ${page}/${total}`);
+      });
+    } catch (err) {
+      console.error("[img] extraction error:", err);
+      toast.error("Extracción de imágenes: " + String(err).slice(0, 120));
       return [];
     }
   };

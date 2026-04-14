@@ -116,12 +116,38 @@ interface ProductDetail {
 
 const REF_CODE_RE = /^[A-Z][A-Z0-9\-]{2,}$/;
 
+const HTML_ENTITIES: Record<string, string> = {
+  "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'",
+  "&aacute;": "á", "&eacute;": "é", "&iacute;": "í", "&oacute;": "ó", "&uacute;": "ú",
+  "&Aacute;": "Á", "&Eacute;": "É", "&Iacute;": "Í", "&Oacute;": "Ó", "&Uacute;": "Ú",
+  "&ntilde;": "ñ", "&Ntilde;": "Ñ", "&uuml;": "ü", "&Uuml;": "Ü",
+  "&iexcl;": "¡", "&iquest;": "¿", "&copy;": "©", "&reg;": "®",
+};
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+      if (HTML_ENTITIES[entity]) return HTML_ENTITIES[entity];
+      // Numeric entities: &#123; or &#x1F;
+      const numMatch = entity.match(/^&#x?([0-9a-fA-F]+);$/);
+      if (numMatch) {
+        const code = entity.startsWith("&#x")
+          ? parseInt(numMatch[1], 16)
+          : parseInt(numMatch[1], 10);
+        return String.fromCharCode(code);
+      }
+      return entity;
+    });
+}
+
 function extractTextContent(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return decodeEntities(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function parseProductDetail(html: string, slug: string): ProductDetail {

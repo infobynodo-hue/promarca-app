@@ -9,7 +9,17 @@ const FETCH_HEADERS = {
   "Accept-Language": "es-CO,es;q=0.9",
 };
 const REQUEST_DELAY_MS = 200;
-const DEFAULT_CATEGORY_IDS = [9, 253, 255];
+const DEFAULT_CATEGORY_IDS = [
+  9, 253, 255,  // Lapiceros / Artículos de escritura
+  292,          // Gorras
+  23,           // Mugs, Botilitos, Vasos y Termos
+  31,           // Memorias USB
+  112,          // Tecnología
+  107,          // Maletines & Bolsos / Tulas & Mochilas
+  12,           // Confecciones / Textiles
+  25,           // Paraguas e Impermeables / Sombrillas
+  24,           // Cuadernos / Oficina
+];
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

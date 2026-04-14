@@ -1,10 +1,8 @@
 // ── PDF Image Extractor ───────────────────────────────────────────────────────
-// Strategy: render each page to canvas, then use the operator list to find
-// the exact position of every paintImageXObject operation, and crop that
-// region from the rendered canvas. This is reliable because:
-//  1. page.render() forces all image resources to decode.
-//  2. The operator list gives us the exact CTM (transform matrix) for each image.
-//  3. viewport.convertToViewportPoint() handles PDF→canvas coordinate mapping.
+// Strategy: scan raw PDF bytes for embedded JPEG data (DCTDecode).
+// Most product catalog PDFs embed product photos as JPEG XObjects.
+// JPEG files always start with FF D8 FF and end with FF D9 — we find all
+// of those in the binary and extract them directly, no PDF.js rendering needed.
 
 export interface ExtractedImage {
   dataUrl: string;
@@ -14,20 +12,6 @@ export interface ExtractedImage {
   heightPx: number;
 }
 
-// ── Matrix helpers ────────────────────────────────────────────────────────────
-function multiplyMatrix(m1: number[], m2: number[]): number[] {
-  const [a1, b1, c1, d1, e1, f1] = m1;
-  const [a2, b2, c2, d2, e2, f2] = m2;
-  return [
-    a1 * a2 + b1 * c2,
-    a1 * b2 + b1 * d2,
-    c1 * a2 + d1 * c2,
-    c1 * b2 + d1 * d2,
-    e1 * a2 + f1 * c2 + e2,
-    e1 * b2 + f1 * d2 + f2,
-  ];
-}
-
 function assessQuality(w: number, h: number): "high" | "medium" | "low" {
   const px = w * h;
   if (px >= 120 * 120) return "high";
@@ -35,137 +19,112 @@ function assessQuality(w: number, h: number): "high" | "medium" | "low" {
   return "low";
 }
 
-// ── Extract images from one page ──────────────────────────────────────────────
-async function extractPageImages(
-  page: any,
-  pdfjsLib: any,
-  pageNumber: number,
-  scale = 2.0
-): Promise<ExtractedImage[]> {
+// Load a JPEG blob → get actual dimensions + data URL
+function loadJpeg(blob: Blob): Promise<{ w: number; h: number; dataUrl: string } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    const cleanup = () => URL.revokeObjectURL(url);
 
-  const viewport = page.getViewport({ scale });
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width  = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d")!.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        cleanup();
+        resolve({ w: img.naturalWidth, h: img.naturalHeight, dataUrl });
+      } catch {
+        cleanup();
+        resolve(null);
+      }
+    };
+    img.onerror = () => { cleanup(); resolve(null); };
+    img.src = url;
+  });
+}
 
-  // 1. Render to canvas — this forces all image XObjects to decode into memory
-  const canvas = document.createElement("canvas");
-  canvas.width  = Math.round(viewport.width);
-  canvas.height = Math.round(viewport.height);
-  const ctx = canvas.getContext("2d")!;
+// ── Scan raw bytes for JPEG markers ──────────────────────────────────────────
+// JPEG SOI  = FF D8 FF (start of image)
+// JPEG EOI  = FF D9    (end of image)
+function findJpegs(bytes: Uint8Array): Uint8Array[] {
+  const jpegs: Uint8Array[] = [];
+  let i = 0;
 
-  try {
-    await page.render({ canvasContext: ctx, viewport }).promise;
-  } catch {
-    return [];
-  }
-
-  // 2. Get operator list to find image paint operations and their transforms
-  let opList: any;
-  try {
-    opList = await page.getOperatorList();
-  } catch {
-    return [];
-  }
-
-  const OPS         = pdfjsLib.OPS ?? {};
-  const OP_SAVE     = OPS.save      ?? 40;
-  const OP_RESTORE  = OPS.restore   ?? 41;
-  const OP_TRANSFORM= OPS.transform ?? 12;
-  const OP_IMG      = OPS.paintImageXObject     ?? 85;
-  const OP_MASK     = OPS.paintImageMaskXObject  ?? 84;
-
-  // 3. Walk operator list tracking the Current Transformation Matrix (CTM)
-  let ctm: number[] = [1, 0, 0, 1, 0, 0];
-  const stack: number[][] = [];
-  const results: ExtractedImage[] = [];
-  const seen  = new Set<string>();
-
-  for (let i = 0; i < opList.fnArray.length; i++) {
-    const fn   = opList.fnArray[i];
-    const args = opList.argsArray[i] ?? [];
-
-    if      (fn === OP_SAVE)      { stack.push([...ctm]); }
-    else if (fn === OP_RESTORE)   { ctm = stack.pop() ?? [1, 0, 0, 1, 0, 0]; }
-    else if (fn === OP_TRANSFORM) { ctm = multiplyMatrix(ctm, args as number[]); }
-    else if (fn === OP_IMG || fn === OP_MASK) {
-
-      // Image is painted into a unit square [0,1]×[0,1] under CTM.
-      // Transform all 4 corners to PDF user space then to canvas pixels.
-      const [a, b, c, d, e, f] = ctm;
-
-      const corners = ([
-        [0, 0], [1, 0], [1, 1], [0, 1],
-      ] as [number, number][]).map(([px, py]) => {
-        const ux = a * px + c * py + e;
-        const uy = b * px + d * py + f;
-        return viewport.convertToViewportPoint(ux, uy) as [number, number];
-      });
-
-      const cxs = corners.map(p => p[0]);
-      const cys = corners.map(p => p[1]);
-      const x = Math.round(Math.min(...cxs));
-      const y = Math.round(Math.min(...cys));
-      const w = Math.round(Math.max(...cxs) - Math.min(...cxs));
-      const h = Math.round(Math.max(...cys) - Math.min(...cys));
-
-      // Skip tiny images (icons, dividers, tiny logos)
-      if (w < 55 || h < 55) continue;
-      // Skip if outside canvas bounds
-      if (x < 0 || y < 0 || x + w > canvas.width || y + h > canvas.height) continue;
-
-      // Deduplicate by position+size (same XObject painted multiple times)
-      const key = `${x}|${y}|${w}|${h}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      // 4. Crop this exact region from the rendered canvas
-      const out = document.createElement("canvas");
-      out.width  = w;
-      out.height = h;
-      out.getContext("2d")!.drawImage(canvas, x, y, w, h, 0, 0, w, h);
-
-      const dataUrl = out.toDataURL("image/jpeg", 0.92);
-      if (!dataUrl || dataUrl === "data:,") continue;
-
-      results.push({
-        dataUrl,
-        pageNumber,
-        quality: assessQuality(w, h),
-        widthPx: w,
-        heightPx: h,
-      });
+  while (i < bytes.length - 3) {
+    // Look for SOI: FF D8 FF
+    if (bytes[i] !== 0xFF || bytes[i + 1] !== 0xD8 || bytes[i + 2] !== 0xFF) {
+      i++;
+      continue;
     }
+
+    const start = i;
+    // Scan forward for EOI: FF D9
+    let j = start + 2;
+    let found = false;
+
+    while (j < bytes.length - 1) {
+      if (bytes[j] === 0xFF && bytes[j + 1] === 0xD9) {
+        found = true;
+        j += 2; // include EOI
+        break;
+      }
+      j++;
+    }
+
+    if (!found) { i++; continue; }
+
+    const chunk = bytes.slice(start, j);
+    // Skip suspiciously small blobs — likely JPEG thumbnails / icons (<3KB)
+    if (chunk.length >= 3_000) {
+      jpegs.push(chunk);
+    }
+
+    i = j; // continue after this JPEG
   }
 
-  // Sort largest first (most likely to be the real product photos)
-  results.sort((a, b) => (b.widthPx * b.heightPx) - (a.widthPx * a.heightPx));
-
-  return results;
+  return jpegs;
 }
 
 // ── Main extraction function ──────────────────────────────────────────────────
 export async function extractImagesFromPDF(
   file: File,
-  onProgress?: (page: number, total: number) => void
+  onProgress?: (current: number, total: number) => void
 ): Promise<ExtractedImage[]> {
 
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const buffer = await file.arrayBuffer();
+  const bytes  = new Uint8Array(buffer);
 
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const numPages = pdf.numPages;
+  // Find all JPEG blobs in the PDF binary
+  const jpegs = findJpegs(bytes);
+  if (jpegs.length === 0) return [];
 
-  const all: ExtractedImage[] = [];
+  const results: ExtractedImage[] = [];
 
-  for (let p = 1; p <= numPages; p++) {
-    onProgress?.(p, numPages);
-    const page = await pdf.getPage(p);
-    const imgs = await extractPageImages(page, pdfjsLib, p);
-    all.push(...imgs);
-    page.cleanup();
+  for (let idx = 0; idx < jpegs.length; idx++) {
+    onProgress?.(idx + 1, jpegs.length);
+
+    const blob = new Blob([jpegs[idx]], { type: "image/jpeg" });
+    const info = await loadJpeg(blob);
+    if (!info) continue;
+
+    const { w, h, dataUrl } = info;
+    if (w < 60 || h < 60) continue; // skip tiny icons
+
+    const q = assessQuality(w, h);
+    results.push({ dataUrl, pageNumber: 1, quality: q, widthPx: w, heightPx: h });
   }
 
-  return all;
+  // Sort: largest / best quality first (most likely to be product photos)
+  results.sort((a, b) => {
+    const qa = a.quality === "high" ? 0 : a.quality === "medium" ? 1 : 2;
+    const qb = b.quality === "high" ? 0 : b.quality === "medium" ? 1 : 2;
+    if (qa !== qb) return qa - qb;
+    return (b.widthPx * b.heightPx) - (a.widthPx * a.heightPx);
+  });
+
+  return results;
 }
 
 // ── Upload PDF to Supabase Storage ────────────────────────────────────────────

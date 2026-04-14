@@ -119,13 +119,44 @@ function parseProductDetail(html: string, slug: string): ProductDetail {
   let description = "";
   const specs: Record<string, string> = {};
 
-  // ── Reference: appears in <h3> tag (e.g. <h3>CARTER-ECO</h3>)
-  // Structure: <h2>Product Name</h2> <h3>REFERENCE-CODE</h3> <p>description...</p>
-  const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
-  if (h3Match) {
-    const candidate = h3Match[1].trim();
+  // ── Real structure of catalogospromocionales.com product pages:
+  //   <h2>Product Name</h2>
+  //   <hr/>
+  //   <p>REFERENCE-CODE</p>   ← standalone <p> with only the code
+  //   <p>Full description...</p>
+  //
+  // The navigation bar has novedades like: <h4>VA-1203</h4><p>Alcancia piggy max</p>
+  // We must NOT pick those up.
+  //
+  // Strategy: find the product <h2> first, then look for a standalone <p>
+  // containing only an uppercase reference code within the next 3000 chars.
+
+  const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+  const h2End = h2Match ? html.indexOf("</h2>") + 5 : 0;
+  const productArea = html.slice(h2End, h2End + 4000);
+
+  // Find standalone <p>REFERENCE</p> — entire content is just the code
+  const refPPattern = /<p[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/p>/g;
+  let refPMatch: RegExpExecArray | null;
+
+  while ((refPMatch = refPPattern.exec(productArea)) !== null) {
+    const candidate = refPMatch[1].trim();
     if (/^[A-Z][A-Z0-9\-]{2,}$/.test(candidate)) {
       reference = candidate;
+      // Description is the <p> immediately after the reference <p>
+      const afterRef = productArea.slice(refPMatch.index + refPMatch[0].length);
+      const descMatch = afterRef.match(/^\s*<p[^>]*>([\s\S]*?)<\/p>/);
+      if (descMatch) {
+        const text = descMatch[1]
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length > 10) {
+          description = text;
+        }
+      }
+      break;
     }
   }
 
@@ -137,29 +168,14 @@ function parseProductDetail(html: string, slug: string): ProductDetail {
     }
   }
 
-  // ── Description: first <p> that comes after the <h3> reference block
-  // It contains the main description text with measurements etc.
-  if (reference) {
-    // Find the h3 position, then grab the first <p> after it
-    const h3End = html.indexOf(`</h3>`);
-    if (h3End !== -1) {
-      const afterH3 = html.slice(h3End + 5);
-      const pMatch = afterH3.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-      if (pMatch) {
-        const text = pMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        if (text.length > 10) {
-          description = text;
-        }
-      }
-    }
-  }
-
-  // ── Specs: <h4>Label:</h4><p>Value</p> pairs
+  // ── Specs: <h4>Label:</h4><p>Value</p> pairs, only within product area
+  // Skip entries where the key looks like a product reference (navigation items)
   const h4PPattern = /<h4[^>]*>([^<]+)<\/h4>\s*<p[^>]*>([^<]+)<\/p>/gi;
   let h4Match: RegExpExecArray | null;
-  while ((h4Match = h4PPattern.exec(html)) !== null) {
+  while ((h4Match = h4PPattern.exec(productArea)) !== null) {
     const key = h4Match[1].replace(/:$/, "").trim();
     const value = h4Match[2].trim();
+    if (/^[A-Z][A-Z0-9\-]{2,}$/.test(key)) continue; // skip nav reference codes
     if (key && value && key.length < 60 && value.length < 200) {
       specs[key] = value;
     }

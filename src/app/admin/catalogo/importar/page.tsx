@@ -237,58 +237,53 @@ export default function ImportarPage() {
 
     setPhase("importing");
 
-    const refs = toImport.map((p) => p.reference.trim().toUpperCase());
+    const rows = toImport.map((p) => ({
+      reference:   p.reference.trim().toUpperCase(),
+      name:        p.name.trim(),
+      description: p.description || null,
+      price:       p.price,
+      price_label: p.price_label || "Sin marca",
+      category_id: selectedCategory !== "none" ? selectedCategory : null,
+      is_active:   true,
+    }));
 
-    // Detect existing
-    const { data: existing } = await supabase
-      .from("products").select("id, reference").in("reference", refs);
-    const existingMap: Record<string, string> = {};
-    for (const row of existing ?? []) existingMap[row.reference] = row.id;
-    const dupes = refs.filter((r) => existingMap[r]);
-    setDuplicateRefs(dupes);
+    // Use upsert so Postgres handles the unique constraint natively.
+    // ignoreDuplicates=true → skip existing (Omitir mode)
+    // ignoreDuplicates=false → update existing (Actualizar mode)
+    const ignoreDuplicates = duplicateMode === "skip";
 
-    const newProds  = toImport.filter((p) => !existingMap[p.reference.trim().toUpperCase()]);
-    const dupeProds = toImport.filter((p) =>  existingMap[p.reference.trim().toUpperCase()]);
+    const { data: upserted, error } = await supabase
+      .from("products")
+      .upsert(rows, { onConflict: "reference", ignoreDuplicates })
+      .select("id, reference");
 
-    const idMap: Record<string, string> = { ...existingMap };
-
-    // Insert new
-    if (newProds.length > 0) {
-      const { data: inserted, error } = await supabase
-        .from("products")
-        .insert(newProds.map((p) => ({
-          reference: p.reference.trim().toUpperCase(),
-          name: p.name.trim(),
-          description: p.description || null,
-          price: p.price,
-          price_label: p.price_label || "Sin marca",
-          category_id: selectedCategory !== "none" ? selectedCategory : null,
-          is_active: true,
-        })))
-        .select("id, reference");
-      if (error) {
-        toast.error("Error al importar: " + error.message);
-        setPhase("review");
-        return;
-      }
-      for (const row of inserted ?? []) idMap[row.reference] = row.id;
+    if (error) {
+      toast.error("Error al importar: " + error.message);
+      setPhase("review");
+      return;
     }
 
-    // Update duplicates if mode = update
-    if (duplicateMode === "update") {
-      for (const p of dupeProds) {
-        const ref = p.reference.trim().toUpperCase();
-        if (!existingMap[ref]) continue;
-        await supabase.from("products").update({
-          name: p.name.trim(),
-          price: p.price,
-          price_label: p.price_label || "Sin marca",
-          description: p.description || null,
-          category_id: selectedCategory !== "none" ? selectedCategory : null,
-          updated_at: new Date().toISOString(),
-        }).eq("id", existingMap[ref]);
+    // Build reference → id map from upserted rows
+    const idMap: Record<string, string> = {};
+    for (const row of upserted ?? []) idMap[row.reference] = row.id;
+
+    // For skipped rows (ignoreDuplicates=true returns only inserted rows),
+    // fetch the existing IDs so we can still attach photos
+    const upsertedRefs = new Set(Object.keys(idMap));
+    const missingRefs  = rows.map(r => r.reference).filter(r => !upsertedRefs.has(r));
+    if (missingRefs.length > 0) {
+      // Fetch in batches of 50 to avoid URL length limits
+      for (let i = 0; i < missingRefs.length; i += 50) {
+        const batch = missingRefs.slice(i, i + 50);
+        const { data: existing } = await supabase
+          .from("products").select("id, reference").in("reference", batch);
+        for (const row of existing ?? []) idMap[row.reference] = row.id;
       }
     }
+
+    const newCount  = (upserted ?? []).length;
+    const skipCount = ignoreDuplicates ? missingRefs.length : 0;
+    const updCount  = ignoreDuplicates ? 0 : missingRefs.length;
 
     // Upload generated photos
     for (const p of toImport) {
@@ -319,13 +314,10 @@ export default function ImportarPage() {
       .filter((p) => !p._generated)
       .map((p) => `${p.reference} — ${p.name}`);
 
-    const skipped = duplicateMode === "skip" ? dupeProds.length : 0;
-    const updated  = duplicateMode === "update" ? dupeProds.length : 0;
-
     setImportSummary({
-      created: newProds.length,
-      updated,
-      skipped,
+      created: newCount,
+      updated: updCount,
+      skipped: skipCount,
       noImage,
     });
 

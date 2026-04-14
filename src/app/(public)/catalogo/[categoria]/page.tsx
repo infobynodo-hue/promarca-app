@@ -79,10 +79,11 @@ export default async function CatalogPage({ params }: Props) {
       <CatalogGrid
         products={prods.map((p: any) => {
           const imgs: any[] = p.product_images ?? [];
-          const sorted = [...imgs].sort((a, b) => a.display_order - b.display_order);
+          const sorted = [...imgs].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
           const primary = sorted.find((i) => i.is_primary) ?? sorted[0];
-          const primaryImageUrl = primary
-            ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/products/${primary.storage_path}`
+          // Use Supabase SDK to build the URL — avoids path format issues
+          const primaryImageUrl = primary?.storage_path
+            ? supabase.storage.from("products").getPublicUrl(primary.storage_path).data.publicUrl
             : null;
           return {
             id: p.id,

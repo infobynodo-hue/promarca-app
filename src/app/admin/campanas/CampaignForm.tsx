@@ -9,7 +9,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Loader2, Monitor, Tablet, Smartphone, X } from "lucide-react";
+
+const EMOJI_OPTIONS = [
+  "✅","⭐","💯","🏆","🎯","👍","🌟","🔥","⚡","🚀",
+  "💥","🛡️","⚙️","🌿","♻️","🌱","💧","☀️","💰","🎁",
+  "🏷️","💎","🤝","💪","❤️","🧡","💚","💙","📦","🔑",
+  "🔒","📱","💻","🌐","✨","🎉","📅","⏱️","👥","📞",
+  "💡","🎓","🔧","📊","🏅","🎖️","🌈","🍃","💫","🦾",
+];
+
+type DeviceSize = "mobile" | "tablet" | "desktop";
+const DEVICE_WIDTHS: Record<DeviceSize, string> = {
+  mobile: "375px",
+  tablet: "768px",
+  desktop: "100%",
+};
 interface SimpleProduct {
   id: string;
   name: string;
@@ -65,8 +80,12 @@ export function CampaignForm({ initialData }: Props) {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [customImageFile, setCustomImageFile] = useState<File | null>(null);
-  const [customImageUrl, setCustomImageUrl] = useState<string | null>(initialData?.brand_logo_url ? null : null);
+  const [customImageUrl, setCustomImageUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [openEmojiPicker, setOpenEmojiPicker] = useState<number | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSlug, setPreviewSlug] = useState<string | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<DeviceSize>("mobile");
 
   const [form, setForm] = useState<CampaignData>({
     product_id: initialData?.product_id ?? null,
@@ -190,7 +209,8 @@ export function CampaignForm({ initialData }: Props) {
           targetStatus === "published" ? "Campaña publicada" : "Borrador guardado"
         );
         if (preview) {
-          window.open(`/tienda/${form.slug}?preview=true`, "_blank");
+          setPreviewSlug(form.slug);
+          setPreviewOpen(true);
         }
       } else {
         const { data, error } = await supabase
@@ -201,9 +221,10 @@ export function CampaignForm({ initialData }: Props) {
         if (error) throw error;
         toast.success("Campaña creada");
         if (preview && data) {
-          window.open(`/tienda/${form.slug}?preview=true`, "_blank");
+          setPreviewSlug(form.slug);
+          setPreviewOpen(true);
         }
-        router.push(`/admin/campanas/${data.id}/editar`);
+        if (!preview) router.push(`/admin/campanas/${data.id}/editar`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -489,13 +510,38 @@ export function CampaignForm({ initialData }: Props) {
         <CardContent className="space-y-3">
           {form.benefits.map((benefit, i) => (
             <div key={i} className="flex items-center gap-2">
-              <Input
-                value={benefit.emoji}
-                onChange={(e) => updateBenefit(i, "emoji", e.target.value)}
-                className="w-16 text-center text-lg"
-                placeholder="⚡"
-                maxLength={4}
-              />
+              {/* Emoji picker button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenEmojiPicker(openEmojiPicker === i ? null : i)}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 text-xl hover:border-orange-400 hover:bg-orange-50 transition-colors"
+                  title="Elegir emoji"
+                >
+                  {benefit.emoji || "⚡"}
+                </button>
+                {openEmojiPicker === i && (
+                  <div className="absolute left-0 top-12 z-50 w-64 rounded-xl border border-zinc-200 bg-white p-2 shadow-xl">
+                    <p className="text-[10px] text-zinc-400 mb-1.5 px-1">Elige un emoji</p>
+                    <div className="grid grid-cols-10 gap-0.5">
+                      {EMOJI_OPTIONS.map((em) => (
+                        <button
+                          key={em}
+                          type="button"
+                          onClick={() => {
+                            updateBenefit(i, "emoji", em);
+                            setOpenEmojiPicker(null);
+                          }}
+                          className={`flex h-7 w-7 items-center justify-center rounded-md text-base hover:bg-orange-50 transition-colors
+                            ${benefit.emoji === em ? "bg-orange-100 ring-1 ring-orange-400" : ""}`}
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <Input
                 value={benefit.text}
                 onChange={(e) => updateBenefit(i, "text", e.target.value)}
@@ -573,33 +619,87 @@ export function CampaignForm({ initialData }: Props) {
       </Card>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-3 pt-2 pb-8">
-        <Button
-          variant="outline"
-          onClick={() => handleSave("draft")}
-          disabled={saving}
-        >
+      <div className="flex flex-wrap items-center gap-3 pt-2 pb-8">
+        <Button variant="outline" onClick={() => handleSave("draft")} disabled={saving}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Guardar borrador
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => handleSave("draft", true)}
-          disabled={saving}
-        >
+        <Button variant="outline" onClick={() => handleSave("draft", true)} disabled={saving}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <ExternalLink className="mr-2 h-4 w-4" />
-          Guardar y previsualizar
+          <Monitor className="mr-2 h-4 w-4" />
+          Previsualizar
         </Button>
-        <Button
-          onClick={() => handleSave("published")}
-          disabled={saving}
-          className="bg-green-600 hover:bg-green-700"
-        >
+        <Button onClick={() => handleSave("published")} disabled={saving} className="bg-green-600 hover:bg-green-700">
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Publicar
         </Button>
       </div>
+
+      {/* ── Preview modal ── */}
+      {previewOpen && previewSlug && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-zinc-900">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between gap-4 bg-zinc-800 px-4 py-2 flex-shrink-0">
+            <span className="text-sm text-zinc-300 font-medium truncate">
+              Preview — /tienda/{previewSlug}
+            </span>
+            {/* Device switcher */}
+            <div className="flex items-center gap-1 rounded-lg bg-zinc-700 p-1">
+              {(["mobile", "tablet", "desktop"] as DeviceSize[]).map((d) => {
+                const Icon = d === "mobile" ? Smartphone : d === "tablet" ? Tablet : Monitor;
+                const label = d === "mobile" ? "375px" : d === "tablet" ? "768px" : "Full";
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setPreviewDevice(d)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors
+                      ${previewDevice === d
+                        ? "bg-white text-zinc-900 font-semibold shadow"
+                        : "text-zinc-400 hover:text-white"
+                      }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <a
+                href={`/tienda/${previewSlug}?preview=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Abrir en pestaña
+              </a>
+              <button
+                onClick={() => setPreviewOpen(false)}
+                className="flex items-center justify-center h-8 w-8 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* iframe container */}
+          <div className="flex flex-1 items-start justify-center overflow-auto bg-zinc-900 py-4">
+            <div
+              style={{ width: DEVICE_WIDTHS[previewDevice], maxWidth: "100%", minHeight: "100%" }}
+              className="bg-white shadow-2xl transition-all duration-300"
+            >
+              <iframe
+                key={previewDevice}
+                src={`/tienda/${previewSlug}?preview=true`}
+                className="w-full border-0"
+                style={{ height: "calc(100vh - 80px)" }}
+                title="Preview landing page"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -119,92 +119,50 @@ function parseProductDetail(html: string, slug: string): ProductDetail {
   let description = "";
   const specs: Record<string, string> = {};
 
-  // Extract reference: look for patterns like FOSTER, GEMINI-ROL
-  // Usually appears as a text node near the product title or in a "Ref:" label
-  const refPatterns = [
-    /[Rr]ef(?:erencia)?[:\s]+([A-Z][A-Z0-9\-]{2,})/,
-    /[Cc][óo]digo[:\s]+([A-Z][A-Z0-9\-]{2,})/,
-    /<span[^>]*class=["'][^"']*ref[^"']*["'][^>]*>([\s\S]*?)<\/span>/i,
-    /<p[^>]*class=["'][^"']*ref[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
-  ];
-
-  for (const pattern of refPatterns) {
-    const m = html.match(pattern);
-    if (m) {
-      const candidate = m[1].replace(/<[^>]+>/g, "").trim();
-      if (/^[A-Z][A-Z0-9\-]{2,}$/.test(candidate)) {
-        reference = candidate;
-        break;
-      }
-    }
-  }
-
-  // If no reference found via labels, try to find standalone reference codes in page
-  if (!reference) {
-    const standaloneRef = html.match(/\b([A-Z][A-Z0-9\-]{3,})\b/g);
-    if (standaloneRef) {
-      // Pick the first one that looks like a product code (not a common word)
-      const commonWords = new Set(["HTML", "BODY", "HEAD", "FORM", "SPAN", "DIV", "TABLE", "HTTP", "HTTPS", "META", "LINK", "SCRIPT", "STYLE"]);
-      for (const candidate of standaloneRef) {
-        if (!commonWords.has(candidate) && /^[A-Z][A-Z0-9\-]{3,}$/.test(candidate)) {
-          reference = candidate;
-          break;
-        }
-      }
+  // ── Reference: appears in <h3> tag (e.g. <h3>CARTER-ECO</h3>)
+  // Structure: <h2>Product Name</h2> <h3>REFERENCE-CODE</h3> <p>description...</p>
+  const h3Match = html.match(/<h3[^>]*>([^<]+)<\/h3>/i);
+  if (h3Match) {
+    const candidate = h3Match[1].trim();
+    if (/^[A-Z][A-Z0-9\-]{2,}$/.test(candidate)) {
+      reference = candidate;
     }
   }
 
   // Fallback: derive reference from slug
   if (!reference && slug) {
-    const slugUpper = slug.toUpperCase().replace(/-/g, "-");
+    const slugUpper = slug.toUpperCase();
     if (/^[A-Z][A-Z0-9\-]{2,}$/.test(slugUpper)) {
       reference = slugUpper;
     }
   }
 
-  // Extract description — look for common containers
-  const descPatterns = [
-    /<div[^>]*class=["'][^"']*detalle[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]*class=["'][^"']*descripcion[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]*class=["'][^"']*description[^"']*["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]*id=["']descripcion["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]*id=["']description["'][^>]*>([\s\S]*?)<\/div>/i,
-  ];
-
-  for (const pattern of descPatterns) {
-    const m = html.match(pattern);
-    if (m) {
-      const text = m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text.length > 20) {
-        description = text;
-        break;
+  // ── Description: first <p> that comes after the <h3> reference block
+  // It contains the main description text with measurements etc.
+  if (reference) {
+    // Find the h3 position, then grab the first <p> after it
+    const h3End = html.indexOf(`</h3>`);
+    if (h3End !== -1) {
+      const afterH3 = html.slice(h3End + 5);
+      const pMatch = afterH3.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+      if (pMatch) {
+        const text = pMatch[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (text.length > 10) {
+          description = text;
+        }
       }
     }
   }
 
-  // Extract specs from common table/list patterns
-  const specTablePattern =
-    /<tr[^>]*>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi;
-  let specMatch: RegExpExecArray | null;
-
-  while ((specMatch = specTablePattern.exec(html)) !== null) {
-    const key = specMatch[1].replace(/<[^>]+>/g, "").trim();
-    const value = specMatch[2].replace(/<[^>]+>/g, "").trim();
+  // ── Specs: <h4>Label:</h4><p>Value</p> pairs
+  const h4PPattern = /<h4[^>]*>([^<]+)<\/h4>\s*<p[^>]*>([^<]+)<\/p>/gi;
+  let h4Match: RegExpExecArray | null;
+  while ((h4Match = h4PPattern.exec(html)) !== null) {
+    const key = h4Match[1].replace(/:$/, "").trim();
+    const value = h4Match[2].trim();
     if (key && value && key.length < 60 && value.length < 200) {
-      // Filter out likely nav/layout rows
-      if (!key.match(/^\d+$/) && !key.match(/^(nombre|precio|total)/i)) {
-        specs[key] = value;
-      }
+      specs[key] = value;
     }
-  }
-
-  // Also look for definition list patterns
-  const dlPattern = /<dt[^>]*>([\s\S]*?)<\/dt>[\s\S]*?<dd[^>]*>([\s\S]*?)<\/dd>/gi;
-  let dlMatch: RegExpExecArray | null;
-  while ((dlMatch = dlPattern.exec(html)) !== null) {
-    const key = dlMatch[1].replace(/<[^>]+>/g, "").trim();
-    const value = dlMatch[2].replace(/<[^>]+>/g, "").trim();
-    if (key && value) specs[key] = value;
   }
 
   return { reference, description, specs };

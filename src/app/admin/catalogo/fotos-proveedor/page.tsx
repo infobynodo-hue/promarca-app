@@ -95,6 +95,10 @@ export default function FotosProveedorPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
+  // Description backfill state
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{ updated: number; total: number; cached: number } | null>(null);
+
   const loadCacheStats = useCallback(async () => {
     try {
       const [countRes, latestRes] = await Promise.all([
@@ -276,6 +280,31 @@ export default function FotosProveedorPage() {
     }
   };
 
+  const handleBackfillDescriptions = async () => {
+    setBackfillLoading(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch("/api/supplier/backfill-descriptions", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Error al importar descripciones");
+        return;
+      }
+      setBackfillResult(data);
+      if (data.updated > 0) {
+        toast.success(`${data.updated} descripción${data.updated !== 1 ? "es" : ""} importada${data.updated !== 1 ? "s" : ""}`);
+      } else {
+        toast.info("No se encontraron descripciones nuevas en el caché");
+      }
+    } catch {
+      toast.error("Error de red al importar descripciones");
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   const progressPercent = bulkTotal > 0 ? Math.round((bulkProgress / bulkTotal) * 100) : 0;
 
   if (loadingData) {
@@ -397,6 +426,61 @@ export default function FotosProveedorPage() {
                 onClick={() => setSyncResult(null)}
               >
                 Sincronizar de nuevo
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Backfill descriptions card */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="h-4 w-4 text-green-500" />
+            Importar descripciones del catálogo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-zinc-500">
+            Copia las descripciones del caché del proveedor a los productos que aún no las tienen.
+            Primero sincroniza el catálogo arriba para actualizar el caché.
+          </p>
+          {!backfillLoading && !backfillResult && (
+            <Button
+              onClick={handleBackfillDescriptions}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={cacheStats.count === 0}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Importar descripciones
+            </Button>
+          )}
+          {backfillLoading && (
+            <div className="flex items-center gap-3 text-sm text-zinc-600">
+              <Loader2 className="h-4 w-4 animate-spin text-green-500 flex-shrink-0" />
+              <span>Importando descripciones…</span>
+            </div>
+          )}
+          {backfillResult && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-center">
+                  <p className="text-2xl font-bold text-green-700">{backfillResult.updated}</p>
+                  <p className="text-xs text-green-600">Actualizados</p>
+                </div>
+                <div className="rounded-lg bg-white border border-zinc-200 px-3 py-2 text-center">
+                  <p className="text-2xl font-bold text-zinc-800">{backfillResult.cached}</p>
+                  <p className="text-xs text-zinc-500">En caché</p>
+                </div>
+                <div className="rounded-lg bg-white border border-zinc-200 px-3 py-2 text-center">
+                  <p className="text-2xl font-bold text-zinc-800">{backfillResult.total}</p>
+                  <p className="text-xs text-zinc-500">Sin descripción</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setBackfillResult(null)}>
+                Importar de nuevo
               </Button>
             </div>
           )}

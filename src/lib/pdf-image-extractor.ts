@@ -1,8 +1,8 @@
 // ── PDF Image Extractor ───────────────────────────────────────────────────────
-// Strategy: scan raw PDF bytes for embedded JPEG data (DCTDecode).
-// Most product catalog PDFs embed product photos as JPEG XObjects.
-// JPEG files always start with FF D8 FF and end with FF D9 — we find all
-// of those in the binary and extract them directly, no PDF.js rendering needed.
+// Strategy: render each PDF page to a canvas and intercept every drawImage()
+// call that PDF.js makes internally. Each product photo is drawn as a discrete
+// drawImage() — we capture it at full resolution before it gets composited
+// onto the page. No byte-scanning, no operator list parsing needed.
 
 export interface ExtractedImage {
   dataUrl: string;
@@ -19,112 +19,99 @@ function assessQuality(w: number, h: number): "high" | "medium" | "low" {
   return "low";
 }
 
-// Load a JPEG blob → get actual dimensions + data URL
-function loadJpeg(blob: Blob): Promise<{ w: number; h: number; dataUrl: string } | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    const cleanup = () => URL.revokeObjectURL(url);
+// ── Intercept drawImage on a canvas context ───────────────────────────────────
+function wrapContext(ctx: CanvasRenderingContext2D, onImage: (src: CanvasImageSource, w: number, h: number) => void) {
+  const orig = ctx.drawImage.bind(ctx);
 
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width  = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext("2d")!.drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        cleanup();
-        resolve({ w: img.naturalWidth, h: img.naturalHeight, dataUrl });
-      } catch {
-        cleanup();
-        resolve(null);
+  // Override drawImage — PDF.js calls this for every image XObject
+  (ctx as any).drawImage = function (source: CanvasImageSource, ...rest: any[]) {
+    try {
+      const w: number =
+        (source as HTMLImageElement).naturalWidth  ||
+        (source as HTMLCanvasElement).width        ||
+        (source as ImageBitmap).width              || 0;
+      const h: number =
+        (source as HTMLImageElement).naturalHeight ||
+        (source as HTMLCanvasElement).height       ||
+        (source as ImageBitmap).height             || 0;
+
+      if (w >= 55 && h >= 55) {
+        onImage(source, w, h);
       }
-    };
-    img.onerror = () => { cleanup(); resolve(null); };
-    img.src = url;
-  });
+    } catch { /* ignore */ }
+
+    return (orig as any)(source, ...rest);
+  };
 }
 
-// ── Scan raw bytes for JPEG markers ──────────────────────────────────────────
-// JPEG SOI  = FF D8 FF (start of image)
-// JPEG EOI  = FF D9    (end of image)
-function findJpegs(bytes: Uint8Array): Uint8Array[] {
-  const jpegs: Uint8Array[] = [];
-  let i = 0;
+// ── Extract images from one page ──────────────────────────────────────────────
+async function extractPageImages(
+  page: any,
+  pageNumber: number
+): Promise<ExtractedImage[]> {
+  const viewport = page.getViewport({ scale: 2.0 });
 
-  while (i < bytes.length - 3) {
-    // Look for SOI: FF D8 FF
-    if (bytes[i] !== 0xFF || bytes[i + 1] !== 0xD8 || bytes[i + 2] !== 0xFF) {
-      i++;
-      continue;
-    }
+  const canvas = document.createElement("canvas");
+  canvas.width  = Math.round(viewport.width);
+  canvas.height = Math.round(viewport.height);
+  const ctx = canvas.getContext("2d")!;
 
-    const start = i;
-    // Scan forward for EOI: FF D9
-    let j = start + 2;
-    let found = false;
+  const captured: ExtractedImage[] = [];
 
-    while (j < bytes.length - 1) {
-      if (bytes[j] === 0xFF && bytes[j + 1] === 0xD9) {
-        found = true;
-        j += 2; // include EOI
-        break;
+  // Install the interceptor BEFORE rendering
+  wrapContext(ctx, (source, w, h) => {
+    try {
+      const out = document.createElement("canvas");
+      out.width  = w;
+      out.height = h;
+      out.getContext("2d")!.drawImage(source as any, 0, 0, w, h);
+      const dataUrl = out.toDataURL("image/jpeg", 0.92);
+      if (dataUrl && dataUrl.length > 100) {
+        captured.push({
+          dataUrl,
+          pageNumber,
+          quality: assessQuality(w, h),
+          widthPx: w,
+          heightPx: h,
+        });
       }
-      j++;
-    }
+    } catch { /* ignore failures */ }
+  });
 
-    if (!found) { i++; continue; }
+  // Render — this triggers all drawImage calls
+  try {
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  } catch { /* ignore render errors */ }
 
-    const chunk = bytes.slice(start, j);
-    // Skip suspiciously small blobs — likely JPEG thumbnails / icons (<3KB)
-    if (chunk.length >= 3_000) {
-      jpegs.push(chunk);
-    }
-
-    i = j; // continue after this JPEG
-  }
-
-  return jpegs;
+  return captured;
 }
 
 // ── Main extraction function ──────────────────────────────────────────────────
 export async function extractImagesFromPDF(
   file: File,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (page: number, total: number) => void
 ): Promise<ExtractedImage[]> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
   const buffer = await file.arrayBuffer();
-  const bytes  = new Uint8Array(buffer);
+  const pdf    = await pdfjsLib.getDocument({ data: buffer }).promise;
 
-  // Find all JPEG blobs in the PDF binary
-  const jpegs = findJpegs(bytes);
-  if (jpegs.length === 0) return [];
+  const all: ExtractedImage[] = [];
 
-  const results: ExtractedImage[] = [];
-
-  for (let idx = 0; idx < jpegs.length; idx++) {
-    onProgress?.(idx + 1, jpegs.length);
-
-    const blob = new Blob([jpegs[idx]], { type: "image/jpeg" });
-    const info = await loadJpeg(blob);
-    if (!info) continue;
-
-    const { w, h, dataUrl } = info;
-    if (w < 60 || h < 60) continue; // skip tiny icons
-
-    const q = assessQuality(w, h);
-    results.push({ dataUrl, pageNumber: 1, quality: q, widthPx: w, heightPx: h });
+  for (let p = 1; p <= pdf.numPages; p++) {
+    onProgress?.(p, pdf.numPages);
+    const page = await pdf.getPage(p);
+    const imgs = await extractPageImages(page, p);
+    all.push(...imgs);
+    page.cleanup();
   }
 
-  // Sort: largest / best quality first (most likely to be product photos)
-  results.sort((a, b) => {
-    const qa = a.quality === "high" ? 0 : a.quality === "medium" ? 1 : 2;
-    const qb = b.quality === "high" ? 0 : b.quality === "medium" ? 1 : 2;
-    if (qa !== qb) return qa - qb;
-    return (b.widthPx * b.heightPx) - (a.widthPx * a.heightPx);
-  });
+  // Sort: largest (product photos) first, small icons last
+  all.sort((a, b) => (b.widthPx * b.heightPx) - (a.widthPx * a.heightPx));
 
-  return results;
+  return all;
 }
 
 // ── Upload PDF to Supabase Storage ────────────────────────────────────────────

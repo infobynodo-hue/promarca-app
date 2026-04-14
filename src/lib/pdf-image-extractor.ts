@@ -239,11 +239,6 @@ function visualGridExtract(
       const cw = Math.min(cellW - 2 * padX, W - cx);
       const ch = Math.min(imgH - padY,       H - cy);
 
-      // Skip empty cells (center pixel is nearly pure white)
-      const midIdx = (Math.round(cy + ch / 2) * W + Math.round(cx + cw / 2)) * 4;
-      const lum    = (data[midIdx] * 299 + data[midIdx+1] * 587 + data[midIdx+2] * 114) / 1000;
-      if (lum > 252) continue;
-
       const img = cropCanvas(pageCanvas, cx, cy, cw, ch, pageNumber);
       if (img) results.push(img);
     }

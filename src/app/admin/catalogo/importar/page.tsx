@@ -106,7 +106,7 @@ export default function ImportarPage() {
     // Auto-match images to products
     // Priority 1: match by detectedRef (reference code found in image crop)
     // Priority 2: match by order index as fallback
-    const goodImages = images.filter((i) => i.quality !== "low");
+    const goodImages = images; // use all images, don't filter by quality
 
     // Build a ref→dataUrl map from images that have a detectedRef
     const refImageMap = new Map<string, string>();

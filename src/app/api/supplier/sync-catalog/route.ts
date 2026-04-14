@@ -114,69 +114,88 @@ interface ProductDetail {
   specs: Record<string, string>;
 }
 
+const REF_CODE_RE = /^[A-Z][A-Z0-9\-]{2,}$/;
+
+function extractTextContent(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function parseProductDetail(html: string, slug: string): ProductDetail {
   let reference = "";
   let description = "";
   const specs: Record<string, string> = {};
 
-  // ── Real structure of catalogospromocionales.com product pages:
-  //   <h2>Product Name</h2>
-  //   <hr/>
-  //   <p>REFERENCE-CODE</p>   ← standalone <p> with only the code
-  //   <p>Full description...</p>
+  // ── Strategy: find the product content area starting after the main <h2> title.
+  // This avoids picking up references/descriptions from the NOVEDADES navigation
+  // at the top of every page (e.g. <h4>VA-1203</h4><p>Alcancia piggy max</p>).
   //
-  // The navigation bar has novedades like: <h4>VA-1203</h4><p>Alcancia piggy max</p>
-  // We must NOT pick those up.
+  // Within the product area, try multiple patterns for the reference code since
+  // the site uses different markup: <h4>, <h3>, <p>, or <span class="textoColor">
   //
-  // Strategy: find the product <h2> first, then look for a standalone <p>
-  // containing only an uppercase reference code within the next 3000 chars.
+  // The description is always the <p> immediately after the reference element.
 
-  const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
-  const h2End = h2Match ? html.indexOf("</h2>") + 5 : 0;
-  const productArea = html.slice(h2End, h2End + 4000);
+  const h2Idx = html.search(/<h2[^>]*>/i);
+  const h2EndIdx = html.indexOf("</h2>", h2Idx > -1 ? h2Idx : 0);
+  const searchStart = h2EndIdx > -1 ? h2EndIdx + 5 : 0;
+  const productArea = html.slice(searchStart, searchStart + 5000);
 
-  // Find standalone <p>REFERENCE</p> — entire content is just the code
-  const refPPattern = /<p[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/p>/g;
-  let refPMatch: RegExpExecArray | null;
+  // Patterns to find standalone reference codes (entire tag content = just the code)
+  // Ordered by likelihood based on observed site structure
+  const refTagPatterns: RegExp[] = [
+    /<h4[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/h4>/gi,
+    /<h3[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/h3>/gi,
+    /<p[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/p>/gi,
+    /<span[^>]*>\s*([A-Z][A-Z0-9\-]{2,})\s*<\/span>/gi,
+  ];
 
-  while ((refPMatch = refPPattern.exec(productArea)) !== null) {
-    const candidate = refPMatch[1].trim();
-    if (/^[A-Z][A-Z0-9\-]{2,}$/.test(candidate)) {
+  for (const pattern of refTagPatterns) {
+    pattern.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(productArea)) !== null) {
+      const candidate = m[1].trim();
+      if (!REF_CODE_RE.test(candidate)) continue;
+
+      // Skip common HTML/nav words
+      const skip = new Set(["DIV", "SPAN", "TABLE", "HEAD", "BODY", "FORM", "META", "LINK", "HTTP", "HTTPS", "COLOR"]);
+      if (skip.has(candidate)) continue;
+
       reference = candidate;
-      // Description is the <p> immediately after the reference <p>
-      const afterRef = productArea.slice(refPMatch.index + refPMatch[0].length);
-      const descMatch = afterRef.match(/^\s*<p[^>]*>([\s\S]*?)<\/p>/);
-      if (descMatch) {
-        const text = descMatch[1]
-          .replace(/<br\s*\/?>/gi, "\n")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-        if (text.length > 10) {
+
+      // Description = the <p> immediately after this element
+      const after = productArea.slice(m.index + m[0].length);
+      const descM = after.match(/^[\s\S]{0,200}<p[^>]*>([\s\S]*?)<\/p>/);
+      if (descM) {
+        const text = extractTextContent(descM[1]);
+        if (text.length > 15) {
           description = text;
         }
       }
       break;
     }
+    if (reference) break;
   }
 
   // Fallback: derive reference from slug
   if (!reference && slug) {
     const slugUpper = slug.toUpperCase();
-    if (/^[A-Z][A-Z0-9\-]{2,}$/.test(slugUpper)) {
+    if (REF_CODE_RE.test(slugUpper)) {
       reference = slugUpper;
     }
   }
 
-  // ── Specs: <h4>Label:</h4><p>Value</p> pairs, only within product area
-  // Skip entries where the key looks like a product reference (navigation items)
-  const h4PPattern = /<h4[^>]*>([^<]+)<\/h4>\s*<p[^>]*>([^<]+)<\/p>/gi;
+  // ── Specs: <h4>Label:</h4> followed by <p>Value</p>, within product area
+  // Skip keys that look like product reference codes (those are nav items, not specs)
+  const h4PPattern = /<h4[^>]*>([^<]+)<\/h4>[\s\S]{0,100}<p[^>]*>([^<]{1,200})<\/p>/gi;
   let h4Match: RegExpExecArray | null;
   while ((h4Match = h4PPattern.exec(productArea)) !== null) {
     const key = h4Match[1].replace(/:$/, "").trim();
     const value = h4Match[2].trim();
-    if (/^[A-Z][A-Z0-9\-]{2,}$/.test(key)) continue; // skip nav reference codes
-    if (key && value && key.length < 60 && value.length < 200) {
+    if (REF_CODE_RE.test(key)) continue; // skip nav reference codes
+    if (key && value && key.length < 60) {
       specs[key] = value;
     }
   }

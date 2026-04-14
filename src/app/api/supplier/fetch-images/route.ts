@@ -11,6 +11,7 @@ interface FetchResult {
   reference: string;
   productId: string;
   productName: string;
+  descriptionUpdated?: boolean;
   error?: string;
 }
 
@@ -141,7 +142,39 @@ async function fetchImagesForProduct(
     return { found: false, imagesCount: 0, reference, productId, productName, error: insertError.message };
   }
 
-  return { found: true, imagesCount: insertedImages.length, reference, productId, productName };
+  // After uploading images, check supplier_product_cache for a description to backfill
+  let descriptionUpdated = false;
+  try {
+    const { data: cacheEntry } = await supabase
+      .from("supplier_product_cache")
+      .select("description")
+      .eq("reference", reference.toUpperCase())
+      .maybeSingle();
+
+    if (cacheEntry?.description) {
+      // Only update if our product has no description
+      const { data: productRow } = await supabase
+        .from("products")
+        .select("description")
+        .eq("id", productId)
+        .maybeSingle();
+
+      if (!productRow?.description) {
+        const { error: updateError } = await supabase
+          .from("products")
+          .update({ description: cacheEntry.description })
+          .eq("id", productId);
+
+        if (!updateError) {
+          descriptionUpdated = true;
+        }
+      }
+    }
+  } catch (descErr) {
+    console.error("Error updating description from cache:", descErr);
+  }
+
+  return { found: true, imagesCount: insertedImages.length, reference, productId, productName, descriptionUpdated };
 }
 
 export async function POST(request: NextRequest) {

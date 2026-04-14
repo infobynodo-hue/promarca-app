@@ -14,6 +14,8 @@ import {
   ImageIcon,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -31,6 +33,7 @@ interface FetchResult {
   reference: string;
   productId: string;
   productName: string;
+  descriptionUpdated?: boolean;
   error?: string;
 }
 
@@ -39,6 +42,17 @@ interface BulkResult {
   withImages: number;
   noImages: number;
   details: FetchResult[];
+}
+
+interface SyncResult {
+  indexed: number;
+  categories: number;
+  errors: string[];
+}
+
+interface CacheStats {
+  count: number;
+  lastSynced: string | null;
 }
 
 interface Stats {
@@ -73,6 +87,31 @@ export default function FotosProveedorPage() {
 
   const [showRecent, setShowRecent] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Catalog sync state
+  const [cacheStats, setCacheStats] = useState<CacheStats>({ count: 0, lastSynced: null });
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+
+  const loadCacheStats = useCallback(async () => {
+    try {
+      const [countRes, latestRes] = await Promise.all([
+        supabase.from("supplier_product_cache").select("id", { count: "exact", head: true }),
+        supabase
+          .from("supplier_product_cache")
+          .select("last_synced_at")
+          .order("last_synced_at", { ascending: false })
+          .limit(1),
+      ]);
+
+      setCacheStats({
+        count: countRes.count ?? 0,
+        lastSynced: latestRes.data?.[0]?.last_synced_at ?? null,
+      });
+    } catch {
+      // Silently ignore — table may not have data yet
+    }
+  }, [supabase]);
 
   const loadData = useCallback(async () => {
     setLoadingData(true);
@@ -122,7 +161,8 @@ export default function FotosProveedorPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadCacheStats();
+  }, [loadData, loadCacheStats]);
 
   const handleBulkFetch = async () => {
     setBulkLoading(true);
@@ -177,7 +217,8 @@ export default function FotosProveedorPage() {
       setRowStatuses((prev) => ({ ...prev, [productId]: data.found ? "found" : "not_found" }));
 
       if (data.found) {
-        toast.success(`${data.imagesCount} imagen${data.imagesCount !== 1 ? "es" : ""} encontrada${data.imagesCount !== 1 ? "s" : ""} para ${data.reference}`);
+        const descMsg = data.descriptionUpdated ? " y descripción importada" : "";
+        toast.success(`${data.imagesCount} imagen${data.imagesCount !== 1 ? "es" : ""} encontrada${data.imagesCount !== 1 ? "s" : ""} para ${data.reference}${descMsg}`);
         await loadData();
       } else {
         toast.error(`No se encontraron imágenes para ${data.reference}`);
@@ -185,6 +226,30 @@ export default function FotosProveedorPage() {
     } catch {
       toast.error("Error de red");
       setRowStatuses((prev) => ({ ...prev, [productId]: "not_found" }));
+    }
+  };
+
+  const handleSyncCatalog = async () => {
+    setSyncLoading(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/supplier/sync-catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data: SyncResult = await res.json();
+      if (!res.ok) {
+        toast.error((data as unknown as { error?: string }).error ?? "Error al sincronizar");
+        return;
+      }
+      setSyncResult(data);
+      toast.success(`Catálogo sincronizado: ${data.indexed} productos indexados`);
+      await loadCacheStats();
+    } catch {
+      toast.error("Error de red al sincronizar catálogo");
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -236,6 +301,84 @@ export default function FotosProveedorPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sync catalog card */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="h-4 w-4 text-blue-500" />
+            Sincronizar catálogo del proveedor
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-500">
+            {cacheStats.lastSynced ? (
+              <span>
+                Última sincronización:{" "}
+                <span className="font-medium text-zinc-700">
+                  {new Date(cacheStats.lastSynced).toLocaleString("es-CO", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
+              </span>
+            ) : (
+              <span className="text-zinc-400 italic">Sin sincronizar aún</span>
+            )}
+            {cacheStats.count > 0 && (
+              <Badge variant="secondary">{cacheStats.count} productos en caché</Badge>
+            )}
+          </div>
+
+          {!syncLoading && !syncResult && (
+            <div className="space-y-2">
+              <Button onClick={handleSyncCatalog} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Sincronizar catálogo
+              </Button>
+              <p className="text-xs text-zinc-400">
+                Esto descarga el índice completo de catalogospromocionales.com (~5 min). Solo
+                necesitas hacerlo ocasionalmente.
+              </p>
+            </div>
+          )}
+
+          {syncLoading && (
+            <div className="flex items-center gap-3 text-sm text-zinc-600">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+              <span>Sincronizando catálogo… esto puede tardar varios minutos.</span>
+            </div>
+          )}
+
+          {syncResult && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+              <p className="font-medium text-zinc-800">Sincronización completada</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-white border border-zinc-200 px-3 py-2 text-center">
+                  <p className="text-2xl font-bold text-zinc-800">{syncResult.indexed}</p>
+                  <p className="text-xs text-zinc-500">Productos indexados</p>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-center">
+                  <p className="text-2xl font-bold text-blue-700">{syncResult.categories}</p>
+                  <p className="text-xs text-blue-600">Categorías procesadas</p>
+                </div>
+              </div>
+              {syncResult.errors.length > 0 && (
+                <p className="text-xs text-zinc-400">
+                  {syncResult.errors.length} error{syncResult.errors.length !== 1 ? "es" : ""} menores (ver consola del servidor)
+                </p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSyncResult(null)}
+              >
+                Sincronizar de nuevo
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Main action card */}
       <Card className="mt-6">
@@ -305,6 +448,15 @@ export default function FotosProveedorPage() {
                   <p className="text-xs text-zinc-400">Sin imágenes</p>
                 </div>
               </div>
+              {bulkResult.details.some((d) => d.descriptionUpdated) && (
+                <p className="text-xs text-blue-600 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                  {bulkResult.details.filter((d) => d.descriptionUpdated).length} descripción
+                  {bulkResult.details.filter((d) => d.descriptionUpdated).length !== 1 ? "es" : ""}{" "}
+                  importada{bulkResult.details.filter((d) => d.descriptionUpdated).length !== 1 ? "s" : ""}{" "}
+                  del catálogo del proveedor
+                </p>
+              )}
               <Button
                 variant="outline"
                 size="sm"

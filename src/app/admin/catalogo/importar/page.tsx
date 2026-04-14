@@ -103,18 +103,31 @@ export default function ImportarPage() {
 
     setExtractedImages(images);
 
-    // Auto-match: zip products with images by order
-    // Filter to best quality images only
+    // Auto-match images to products
+    // Priority 1: match by detectedRef (reference code found in image crop)
+    // Priority 2: match by order index as fallback
     const goodImages = images.filter((i) => i.quality !== "low");
 
-    const working: WorkingProduct[] = textProducts.map((p: any, idx: number) => ({
+    // Build a ref→dataUrl map from images that have a detectedRef
+    const refImageMap = new Map<string, string>();
+    for (const img of goodImages) {
+      if (img.detectedRef && !refImageMap.has(img.detectedRef)) {
+        refImageMap.set(img.detectedRef, img.dataUrl);
+      }
+    }
+
+    const working: WorkingProduct[] = textProducts.map((p: any, idx: number) => {
+      const ref = (p.reference ?? "").trim().toUpperCase();
+      const byRef = refImageMap.get(ref) ?? null;
+      const byIdx = goodImages[idx]?.dataUrl ?? null;
+      return {
       reference: p.reference ?? "",
       name: p.name ?? "",
       price: Number(p.price) || 0,
       price_label: p.price_label ?? "Sin marca",
       description: p.description ?? null,
       _include: true,
-      _imageDataUrl: goodImages[idx]?.dataUrl ?? null,
+      _imageDataUrl: byRef ?? byIdx,
       _generating: false,
       _generated: false,
       _heroBlob: null,
@@ -123,7 +136,8 @@ export default function ImportarPage() {
       _heroUrl: null,
       _genStep: "",
       _genError: null,
-    }));
+      };
+    });
 
     setProducts(working);
     setPhase("review");

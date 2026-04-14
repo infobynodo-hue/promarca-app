@@ -1,8 +1,10 @@
 // ── PDF Image Extractor ───────────────────────────────────────────────────────
-// Strategy: render each PDF page to a canvas and intercept every drawImage()
-// call that PDF.js makes internally. Each product photo is drawn as a discrete
-// drawImage() — we capture it at full resolution before it gets composited
-// onto the page. No byte-scanning, no operator list parsing needed.
+// Strategy: render each PDF page to canvas at high scale, then use text
+// positions to locate product reference codes (e.g. "FOSTER", "GEMINI-ROL").
+// For each reference found, crop the canvas region ABOVE the text block —
+// that rectangle is the product photo shown in the catalog layout.
+// This approach is layout-aware and works regardless of how images are encoded
+// inside the PDF binary.
 
 export interface ExtractedImage {
   dataUrl: string;
@@ -10,38 +12,28 @@ export interface ExtractedImage {
   quality: "high" | "medium" | "low";
   widthPx: number;
   heightPx: number;
+  /** The reference code detected for this image, if any */
+  detectedRef?: string;
 }
 
 function assessQuality(w: number, h: number): "high" | "medium" | "low" {
   const px = w * h;
-  if (px >= 120 * 120) return "high";
-  if (px >= 60  * 60)  return "medium";
+  if (px >= 150 * 150) return "high";
+  if (px >= 70  * 70)  return "medium";
   return "low";
 }
 
-// ── Intercept drawImage on a canvas context ───────────────────────────────────
-function wrapContext(ctx: CanvasRenderingContext2D, onImage: (src: CanvasImageSource, w: number, h: number) => void) {
-  const orig = ctx.drawImage.bind(ctx);
-
-  // Override drawImage — PDF.js calls this for every image XObject
-  (ctx as any).drawImage = function (source: CanvasImageSource, ...rest: any[]) {
-    try {
-      const w: number =
-        (source as HTMLImageElement).naturalWidth  ||
-        (source as HTMLCanvasElement).width        ||
-        (source as ImageBitmap).width              || 0;
-      const h: number =
-        (source as HTMLImageElement).naturalHeight ||
-        (source as HTMLCanvasElement).height       ||
-        (source as ImageBitmap).height             || 0;
-
-      if (w >= 55 && h >= 55) {
-        onImage(source, w, h);
-      }
-    } catch { /* ignore */ }
-
-    return (orig as any)(source, ...rest);
-  };
+// ── Convert PDF user-space coords to canvas pixels ───────────────────────────
+function pdfToCanvas(viewport: any, pdfX: number, pdfY: number): [number, number] {
+  if (typeof viewport.convertToViewportPoint === "function") {
+    return viewport.convertToViewportPoint(pdfX, pdfY) as [number, number];
+  }
+  // Fallback: use transform matrix directly
+  const vt = viewport.transform as number[];
+  return [
+    vt[0] * pdfX + vt[2] * pdfY + vt[4],
+    vt[1] * pdfX + vt[3] * pdfY + vt[5],
+  ];
 }
 
 // ── Extract images from one page ──────────────────────────────────────────────
@@ -49,41 +41,155 @@ async function extractPageImages(
   page: any,
   pageNumber: number
 ): Promise<ExtractedImage[]> {
-  const viewport = page.getViewport({ scale: 2.0 });
+  const SCALE = 2.5;
+  const viewport = page.getViewport({ scale: SCALE });
+  const W = Math.round(viewport.width);
+  const H = Math.round(viewport.height);
 
-  const canvas = document.createElement("canvas");
-  canvas.width  = Math.round(viewport.width);
-  canvas.height = Math.round(viewport.height);
-  const ctx = canvas.getContext("2d")!;
-
-  const captured: ExtractedImage[] = [];
-
-  // Install the interceptor BEFORE rendering
-  wrapContext(ctx, (source, w, h) => {
-    try {
-      const out = document.createElement("canvas");
-      out.width  = w;
-      out.height = h;
-      out.getContext("2d")!.drawImage(source as any, 0, 0, w, h);
-      const dataUrl = out.toDataURL("image/jpeg", 0.92);
-      if (dataUrl && dataUrl.length > 100) {
-        captured.push({
-          dataUrl,
-          pageNumber,
-          quality: assessQuality(w, h),
-          widthPx: w,
-          heightPx: h,
-        });
-      }
-    } catch { /* ignore failures */ }
-  });
-
-  // Render — this triggers all drawImage calls
+  // ── 1. Render full page ──────────────────────────────────────────────────
+  const pageCanvas = document.createElement("canvas");
+  pageCanvas.width  = W;
+  pageCanvas.height = H;
+  const ctx = pageCanvas.getContext("2d")!;
   try {
     await page.render({ canvasContext: ctx, viewport }).promise;
-  } catch { /* ignore render errors */ }
+  } catch {
+    return [];
+  }
 
-  return captured;
+  // ── 2. Get text content with canvas-space positions ──────────────────────
+  let tc: any;
+  try {
+    tc = await page.getTextContent();
+  } catch {
+    return [];
+  }
+
+  interface TI {
+    str: string;
+    x: number; // canvas pixels from left
+    y: number; // canvas pixels from top
+    w: number;
+    h: number;
+  }
+
+  const textItems: TI[] = (tc.items as any[])
+    .filter((it: any) => typeof it.str === "string" && it.str.trim().length > 0)
+    .map((it: any) => {
+      const tf = it.transform as number[];           // [a,b,c,d, pdfX, pdfY]
+      const [cx, cy] = pdfToCanvas(viewport, tf[4], tf[5]);
+      return {
+        str: it.str.trim(),
+        x:   cx,
+        y:   cy,
+        w:   (it.width  || 0) * SCALE,
+        h:   (it.height || 10),            // height is already in px at scale
+      };
+    });
+
+  if (textItems.length === 0) return [];
+
+  // ── 3. Detect product reference codes ────────────────────────────────────
+  // Typical format: "FOSTER", "GEMINI-ROL", "ZIWEI-BAM" — all uppercase,
+  // 4+ chars, may contain digits and hyphens, no lowercase letters.
+  const REF_RE = /^[A-Z][A-Z0-9][A-Z0-9\-]{2,}$/;
+  const refs = textItems.filter(it => REF_RE.test(it.str));
+
+  if (refs.length === 0) return [];
+
+  // ── 4. Group refs into rows (similar canvas Y within 60 px) ──────────────
+  const rows: TI[][] = [];
+  for (const ref of [...refs].sort((a, b) => a.y - b.y)) {
+    const existing = rows.find(r => Math.abs(r[0].y - ref.y) < 60);
+    if (existing) existing.push(ref);
+    else rows.push([ref]);
+  }
+  rows.sort((a, b) => a[0].y - b[0].y);
+
+  // ── 5. For each row, find the bottom edge of the text block in that row ──
+  function rowTextBottom(rowMidY: number): number {
+    // Collect all text items within ~140 px below the reference
+    const related = textItems.filter(
+      it => it.y >= rowMidY - 20 && it.y <= rowMidY + 140
+    );
+    if (related.length === 0) return rowMidY + 60;
+    return Math.max(...related.map(it => it.y)) + 4;
+  }
+
+  // ── 6. Crop image region for each product ────────────────────────────────
+  const results: ExtractedImage[] = [];
+
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri];
+
+    // Card top = bottom edge of the previous row's text, or 5 px for first row
+    let cardTop: number;
+    if (ri === 0) {
+      cardTop = 5;
+    } else {
+      const prevRowMidY = rows[ri - 1][0].y;
+      const prevBottom  = rowTextBottom(prevRowMidY);
+      const thisRefTop  = Math.min(...row.map(r => r.y - r.h));
+      // Place separator midway between previous row text and this row's ref
+      cardTop = Math.round((prevBottom + thisRefTop) / 2);
+    }
+
+    for (const ref of row) {
+      // Gather all text for this product (within 180 px horizontally,
+      // from ref Y down 180 px — covers name + price lines)
+      const productText = textItems.filter(
+        it =>
+          Math.abs(it.x - ref.x) < 200 &&
+          it.y >= ref.y - 25 &&
+          it.y <= ref.y + 180
+      );
+      if (productText.length === 0) productText.push(ref);
+
+      const minX = Math.max(0, Math.min(...productText.map(it => it.x)) - 20);
+      const maxX = Math.min(W, Math.max(...productText.map(it => it.x + it.w)) + 20);
+
+      // Image region is above the reference text
+      const cardBottom = ref.y - ref.h - 6;
+
+      const cropX = Math.round(minX);
+      const cropY = Math.round(cardTop);
+      const cropW = Math.round(maxX - minX);
+      const cropH = Math.round(cardBottom - cardTop);
+
+      if (cropW < 40 || cropH < 30) continue;
+
+      // Clamp to canvas bounds
+      const safeX = Math.max(0, Math.min(cropX, W - 1));
+      const safeY = Math.max(0, Math.min(cropY, H - 1));
+      const safeW = Math.min(cropW, W - safeX);
+      const safeH = Math.min(cropH, H - safeY);
+      if (safeW < 30 || safeH < 30) continue;
+
+      const out = document.createElement("canvas");
+      out.width  = safeW;
+      out.height = safeH;
+      out.getContext("2d")!.drawImage(
+        pageCanvas,
+        safeX, safeY, safeW, safeH,
+        0,     0,     safeW, safeH
+      );
+
+      const dataUrl = out.toDataURL("image/jpeg", 0.93);
+      if (dataUrl && dataUrl.length > 500) {
+        results.push({
+          dataUrl,
+          pageNumber,
+          quality:     assessQuality(safeW, safeH),
+          widthPx:     safeW,
+          heightPx:    safeH,
+          detectedRef: ref.str,
+        });
+      }
+    }
+  }
+
+  // Sort by page order (already in page/row/column order)
+  return results;
 }
 
 // ── Main extraction function ──────────────────────────────────────────────────
@@ -107,9 +213,6 @@ export async function extractImagesFromPDF(
     all.push(...imgs);
     page.cleanup();
   }
-
-  // Sort: largest (product photos) first, small icons last
-  all.sort((a, b) => (b.widthPx * b.heightPx) - (a.widthPx * a.heightPx));
 
   return all;
 }

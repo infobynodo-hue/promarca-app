@@ -46,6 +46,7 @@ export default function ProductosPage() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
   const [view, setView] = useState<"list" | "gallery">("list");
+  const [filterContent, setFilterContent] = useState("all");
 
   // Image modal (manage images)
   const [modalProduct, setModalProduct] = useState<ProductWithImages | null>(null);
@@ -133,7 +134,15 @@ export default function ProductosPage() {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.reference.toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCat === "all" || p.category_id === filterCat;
-    return matchSearch && matchCat;
+    const hasDesc = !!(p as any).description;
+    const hasPhotos = (p.product_images ?? []).length > 0;
+    const matchContent =
+      filterContent === "all" ? true :
+      filterContent === "con-desc" ? hasDesc :
+      filterContent === "sin-desc" ? !hasDesc :
+      filterContent === "con-fotos" ? hasPhotos :
+      filterContent === "sin-fotos" ? !hasPhotos : true;
+    return matchSearch && matchCat && matchContent;
   });
 
   // Group by category for gallery view
@@ -210,6 +219,18 @@ export default function ProductosPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={filterContent} onValueChange={(v) => setFilterContent(v ?? "all")}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Contenido" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todo el contenido</SelectItem>
+            <SelectItem value="con-desc">✅ Con descripción</SelectItem>
+            <SelectItem value="sin-desc">⬜ Sin descripción</SelectItem>
+            <SelectItem value="con-fotos">📷 Con fotos</SelectItem>
+            <SelectItem value="sin-fotos">🚫 Sin fotos</SelectItem>
+          </SelectContent>
+        </Select>
         {/* View toggle */}
         <div className="flex rounded-lg border border-zinc-200 overflow-hidden">
           <button
@@ -242,6 +263,7 @@ export default function ProductosPage() {
                   <TableHead>Categoría</TableHead>
                   <TableHead>Precio</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead className="max-w-[220px]">Descripción</TableHead>
                   <TableHead className="w-10">Shopify</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -301,6 +323,15 @@ export default function ProductosPage() {
                           className="cursor-pointer" onClick={() => handleToggleActive(p)}>
                           {p.is_active ? "Activo" : "Inactivo"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[220px]">
+                        {(p as any).description ? (
+                          <span className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">
+                            {(p as any).description}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-300 italic">Sin descripción</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {(() => {

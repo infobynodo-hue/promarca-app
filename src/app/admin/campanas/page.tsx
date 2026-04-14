@@ -14,7 +14,7 @@ import {
 import { Plus, ExternalLink, Megaphone } from "lucide-react";
 import { CampaignStatusToggle } from "./CampaignStatusToggle";
 
-export const metadata = { title: "Campañas B2C — ProMarca Admin" };
+export const metadata = { title: "Ventas B2C — ProMarca Admin" };
 
 export default async function CampanasPage() {
   const supabase = await createClient();
@@ -28,7 +28,7 @@ export default async function CampanasPage() {
     <>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Campañas B2C</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Ventas B2C</h1>
           <p className="text-sm text-zinc-500">
             {campaigns?.length ?? 0} campaña{(campaigns?.length ?? 0) !== 1 ? "s" : ""} de venta directa
           </p>

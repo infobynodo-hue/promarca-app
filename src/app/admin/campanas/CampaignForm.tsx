@@ -86,6 +86,14 @@ export function CampaignForm({ initialData }: Props) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSlug, setPreviewSlug] = useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>("mobile");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<null | {
+    headline: string;
+    subheadline: string;
+    benefits: { emoji: string; text: string }[];
+    fomo_text: string;
+    compare_price_suggestion: number;
+  }>(null);
 
   const [form, setForm] = useState<CampaignData>({
     product_id: initialData?.product_id ?? null,
@@ -251,6 +259,54 @@ export function CampaignForm({ initialData }: Props) {
     }
   };
 
+  const handleAiSuggest = async () => {
+    if (!selectedProduct) return;
+    setAiLoading(true);
+    setAiSuggestions(null);
+    try {
+      // Fetch description from products table
+      const { data: prod } = await supabase
+        .from("products")
+        .select("description")
+        .eq("id", selectedProduct.id)
+        .single();
+
+      const res = await fetch("/api/ai/campaign-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: selectedProduct.name,
+          reference: selectedProduct.reference,
+          description: prod?.description ?? "",
+          price: selectedProduct.price,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Error al generar con IA"); return; }
+      setAiSuggestions(data);
+    } catch {
+      toast.error("Error de red al conectar con IA");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applyAiSuggestions = (suggestions: typeof aiSuggestions) => {
+    if (!suggestions) return;
+    setForm((prev) => ({
+      ...prev,
+      headline: suggestions.headline,
+      subheadline: suggestions.subheadline,
+      benefits: suggestions.benefits,
+      fomo_text: suggestions.fomo_text,
+      compare_price: suggestions.compare_price_suggestion > 0
+        ? String(suggestions.compare_price_suggestion)
+        : prev.compare_price,
+    }));
+    setAiSuggestions(null);
+    toast.success("✨ Sugerencias aplicadas");
+  };
+
   const fmtPrice = (n: number) =>
     new Intl.NumberFormat("es-CO", {
       style: "currency",
@@ -334,6 +390,91 @@ export function CampaignForm({ initialData }: Props) {
                 <p className="font-medium text-zinc-800 truncate">{selectedProduct.name}</p>
                 <p className="text-xs text-zinc-500 font-mono">{selectedProduct.reference} · {fmtPrice(selectedProduct.price)}</p>
               </div>
+            </div>
+          )}
+
+          {/* AI Copywriting assistant */}
+          {selectedProduct && (
+            <div className="space-y-3 border-t border-zinc-100 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-zinc-700">✨ Asistente de copywriting IA</p>
+                  <p className="text-xs text-zinc-400">Genera título, subtítulo, beneficios y texto FOMO optimizados para venta</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAiSuggest}
+                  disabled={aiLoading}
+                  className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:opacity-60 transition-all"
+                >
+                  {aiLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Generando...</>
+                  ) : (
+                    <>✨ Generar con IA</>
+                  )}
+                </button>
+              </div>
+
+              {/* Suggestions panel */}
+              {aiSuggestions && (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Sugerencias generadas</p>
+
+                  <div className="space-y-2">
+                    <div className="rounded-lg bg-white border border-violet-100 p-3">
+                      <p className="text-[10px] text-violet-500 font-semibold uppercase mb-1">Título principal</p>
+                      <p className="text-sm font-bold text-zinc-800">{aiSuggestions.headline}</p>
+                    </div>
+                    <div className="rounded-lg bg-white border border-violet-100 p-3">
+                      <p className="text-[10px] text-violet-500 font-semibold uppercase mb-1">Subtítulo</p>
+                      <p className="text-sm text-zinc-700">{aiSuggestions.subheadline}</p>
+                    </div>
+                    <div className="rounded-lg bg-white border border-violet-100 p-3">
+                      <p className="text-[10px] text-violet-500 font-semibold uppercase mb-1">Beneficios</p>
+                      <ul className="space-y-1">
+                        {aiSuggestions.benefits.map((b, i) => (
+                          <li key={i} className="text-sm text-zinc-700">{b.emoji} {b.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-lg bg-white border border-violet-100 p-3">
+                      <p className="text-[10px] text-violet-500 font-semibold uppercase mb-1">Texto FOMO</p>
+                      <p className="text-sm text-zinc-700">{aiSuggestions.fomo_text}</p>
+                    </div>
+                    {aiSuggestions.compare_price_suggestion > 0 && (
+                      <div className="rounded-lg bg-white border border-violet-100 p-3">
+                        <p className="text-[10px] text-violet-500 font-semibold uppercase mb-1">Precio de comparación sugerido</p>
+                        <p className="text-sm text-zinc-700">{fmtPrice(aiSuggestions.compare_price_suggestion)}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => applyAiSuggestions(aiSuggestions)}
+                      className="flex-1 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+                    >
+                      ✅ Aplicar todo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiSuggestions(null)}
+                      className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-50 transition-colors"
+                    >
+                      Descartar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAiSuggest}
+                      disabled={aiLoading}
+                      className="rounded-lg border border-violet-300 px-4 py-2 text-sm text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-50"
+                    >
+                      {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "🔄 Regenerar"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

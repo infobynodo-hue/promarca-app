@@ -198,7 +198,7 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     align-items: flex-start;
   }
   .logo-wrap { display: flex; flex-direction: column; gap: 4px; }
-  .logo-img { height: 38px; width: auto; display: block; }
+  .logo-img { height: 44px; width: auto; display: block; }
   .logo {
     font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1;
   }

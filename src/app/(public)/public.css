@@ -5,7 +5,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --nav-h: 48px;
+  --nav-h: 60px;
   --orange: #FF6B1A;
   --orange-d: #E85A0A;
   --text: #1d1d1f;
@@ -40,7 +40,7 @@
   padding: 0 22px;
 }
 .nav-logo { display: flex; align-items: center; }
-.nav-logo img { height: 28px; width: auto; display: block; }
+.nav-logo img { height: 36px; width: auto; display: block; }
 .nav-links { display: flex; gap: 28px; list-style: none; }
 .nav-links a {
   font-size: 12px;

@@ -50,7 +50,7 @@ export function AdminSidebar() {
         <img
           src="/img/promarca-logo-dark.png"
           alt="ProMarca"
-          className="h-8 w-auto"
+          className="h-9 w-auto"
         />
       </div>
 

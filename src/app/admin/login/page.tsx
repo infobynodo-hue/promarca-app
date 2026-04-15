@@ -40,7 +40,7 @@ export default function LoginPage() {
           <img
             src="/img/promarca-logo.png"
             alt="ProMarca"
-            className="mx-auto mb-4 h-8"
+            className="mx-auto mb-4 h-10"
           />
           <CardTitle className="text-xl">Iniciar sesión</CardTitle>
         </CardHeader>

@@ -1,6 +1,7 @@
-import { CampaignForm } from "../CampaignForm";
+"use client";
 
-export const metadata = { title: "Nueva venta B2C — ProMarca Admin" };
+import { Suspense } from "react";
+import { CampaignForm } from "../CampaignForm";
 
 export default function NuevaCampanaPage() {
   return (
@@ -11,7 +12,9 @@ export default function NuevaCampanaPage() {
           Crea una landing page de venta directa al consumidor
         </p>
       </div>
-      <CampaignForm />
+      <Suspense>
+        <CampaignForm />
+      </Suspense>
     </>
   );
 }

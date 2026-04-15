@@ -284,9 +284,254 @@ export default async function TiendaSlugPage({ params, searchParams }: Props) {
     }
   `;
 
+  const template = (campaign as any).template ?? "hero";
+  const cuota3 = Math.ceil(realPrice / 3);
+  const testimonials: { name: string; city: string; text: string; rating: number }[] =
+    Array.isArray((campaign as any).testimonials) ? (campaign as any).testimonials : [];
+
+  // ── Shared blocks ──────────────────────────────────────────────────────────
+  const BrandHeader = () => (
+    <div className="brand-header">
+      {campaign.brand_logo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={campaign.brand_logo_url} alt={campaign.brand_name ?? ""} className="brand-logo" />
+      ) : (
+        <div className="brand-name">{campaign.brand_name}</div>
+      )}
+      <div className="brand-line" />
+    </div>
+  );
+
+  const GalleryBlock = () => (
+    <div className="gallery">
+      <div className="gallery-scroll" id="gallery-scroll">
+        {images.length > 0 ? (
+          images.map((img, i) => (
+            <div className="gallery-img-wrap" key={i}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt={img.alt} loading={i === 0 ? "eager" : "lazy"} />
+            </div>
+          ))
+        ) : (
+          <div className="gallery-placeholder"><span>📦</span></div>
+        )}
+      </div>
+      {images.length > 1 && (
+        <div className="gallery-dots">
+          {images.map((_, i) => (
+            <div key={i} className={`gallery-dot${i === 0 ? " active" : ""}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const PriceBlock = ({ note }: { note?: string }) => (
+    <div className="price-block">
+      {comparePrice != null && <div className="price-compare">{fmt(comparePrice)}</div>}
+      <div className="price-main">{fmt(realPrice)}</div>
+      <div className="price-note">{note ?? "Precio por unidad · Envío incluido"}</div>
+    </div>
+  );
+
+  const CtaBlock = () => campaign.shopify_url ? (
+    <a href={campaign.shopify_url} target="_blank" rel="noopener noreferrer" className="cta-primary">🛒 COMPRAR AHORA</a>
+  ) : (
+    <span className="cta-primary disabled">Próximamente</span>
+  );
+
+  const BenefitsBlock = ({ title }: { title?: string }) => benefits.length > 0 ? (
+    <div className="benefits-card">
+      <div className="benefits-title">{title ?? "Por qué elegirlo"}</div>
+      {benefits.map((b, i) => (
+        <div className="benefit-item" key={i}>
+          <span className="benefit-emoji">{b.emoji}</span>
+          <span className="benefit-text">{b.text}</span>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+  const FomoBar = () => campaign.fomo_text ? (
+    <div className="fomo-bar">
+      <div className="fomo-dot" />
+      <div className="fomo-text">{campaign.fomo_text}</div>
+    </div>
+  ) : null;
+
+  const WaButton = () => whatsappUrl ? (
+    <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="cta-whatsapp">💬 Consultar por WhatsApp</a>
+  ) : null;
+
+  const Footer = () => (
+    <div className="lp-footer">
+      <p>© {new Date().getFullYear()} {campaign.brand_name ?? "ProMarca"} · Todos los derechos reservados</p>
+    </div>
+  );
+
+  // ── Template content ───────────────────────────────────────────────────────
+
+  // Template: Problema → Solución
+  const ProblemaContent = () => (
+    <>
+      <BrandHeader />
+      {/* Pain block */}
+      <div className="pain-block">
+        <div className="pain-badge">❌ ¿Te pasa esto?</div>
+        <h2 className="pain-text">{campaign.subheadline ?? `¿Cansado de que tu marca no se recuerde?`}</h2>
+      </div>
+      {/* Solution reveal */}
+      <div className="solution-reveal">
+        <div className="solution-badge">✅ La solución</div>
+        <h1 className="headline-text">{campaign.headline}</h1>
+      </div>
+      <PriceBlock />
+      <CtaBlock />
+      <BenefitsBlock title="Cómo lo soluciona" />
+      <FomoBar />
+      <WaButton />
+      <Footer />
+    </>
+  );
+
+  // Template: Prueba Social
+  const PruebaSocialContent = () => {
+    const displayTestimonials = testimonials.length > 0 ? testimonials : benefits.slice(0, 2).map((b, i) => ({
+      name: "Cliente verificado",
+      city: ["Bogotá", "Medellín", "Cali"][i % 3],
+      text: b.text,
+      rating: 5,
+    }));
+    const avgRating = testimonials.length > 0
+      ? (testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length).toFixed(1)
+      : "5.0";
+    return (
+      <>
+        <BrandHeader />
+        <div className="social-proof-bar">
+          <div className="sp-stat">
+            <span className="sp-num">+{testimonials.length > 0 ? testimonials.length * 47 + 120 : 500}</span>
+            <span className="sp-label">clientes</span>
+          </div>
+          <div className="sp-divider" />
+          <div className="sp-stat">
+            <span className="sp-num">{avgRating}</span>
+            <span className="sp-label">★ rating</span>
+          </div>
+          <div className="sp-divider" />
+          <div className="sp-stat"><span className="sp-num">48h</span><span className="sp-label">entrega</span></div>
+        </div>
+        {displayTestimonials.slice(0, 3).map((t, i) => (
+          <div className="testimonial-card" key={i}>
+            <div className="testimonial-stars">{"★".repeat(t.rating)}{"☆".repeat(5 - t.rating)}</div>
+            <p className="testimonial-text">&ldquo;{t.text}&rdquo;</p>
+            <p className="testimonial-author">— {t.name}{t.city ? `, ${t.city}` : ""}</p>
+          </div>
+        ))}
+        <div className="headline-block">
+          <h1 className="headline-text">{campaign.headline}</h1>
+          {campaign.subheadline && <p className="subheadline-text">{campaign.subheadline}</p>}
+        </div>
+        <PriceBlock />
+        <CtaBlock />
+        <BenefitsBlock title="Por qué lo eligen" />
+        <FomoBar />
+        <WaButton />
+        <Footer />
+      </>
+    );
+  };
+
+  // Template: Hispano / Colombia
+  const HispanoContent = () => (
+    <>
+      <BrandHeader />
+      {/* WhatsApp CTA FIRST */}
+      <WaButton />
+      <div className="headline-block">
+        <h1 className="headline-text">{campaign.headline}</h1>
+        {campaign.subheadline && <p className="subheadline-text">{campaign.subheadline}</p>}
+      </div>
+      {/* Price with cuotas */}
+      <div className="price-block">
+        {comparePrice != null && <div className="price-compare">{fmt(comparePrice)}</div>}
+        <div className="price-main">{fmt(realPrice)}</div>
+        <div className="cuotas-badge">💳 O paga en 3 cuotas de {fmt(cuota3)}</div>
+        <div className="price-note">Pago contra entrega · Nequi · PSE · Bancolombia</div>
+      </div>
+      <CtaBlock />
+      <BenefitsBlock title="Por qué nos eligen" />
+      {/* Trust signals */}
+      <div className="trust-bar">
+        <div className="trust-item">🏢 <span>Empresa colombiana</span></div>
+        <div className="trust-item">🚚 <span>Envío a todo el país</span></div>
+        <div className="trust-item">✅ <span>Garantía incluida</span></div>
+      </div>
+      <FomoBar />
+      <WaButton />
+      <Footer />
+    </>
+  );
+
+  // Template: Hero (default)
+  const HeroContent = () => (
+    <>
+      <BrandHeader />
+      <div className="headline-block">
+        <h1 className="headline-text">{campaign.headline}</h1>
+        {campaign.subheadline && <p className="subheadline-text">{campaign.subheadline}</p>}
+      </div>
+      <PriceBlock />
+      <CtaBlock />
+      <BenefitsBlock />
+      <FomoBar />
+      <WaButton />
+      <Footer />
+    </>
+  );
+
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+      <style dangerouslySetInnerHTML={{ __html: css + `
+        /* ── Problema-Solución ── */
+        .pain-block { padding: 24px 20px 16px; background: rgba(239,68,68,0.06); border-bottom: 1px solid rgba(239,68,68,0.15); }
+        .pain-badge { font-size: 0.75rem; font-weight: 700; color: #ef4444; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+        .pain-text { font-size: 1.2rem; font-weight: 700; color: #fca5a5; line-height: 1.35; }
+        .solution-reveal { padding: 20px 20px 0; }
+        .solution-badge { font-size: 0.75rem; font-weight: 700; color: #22c55e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+
+        /* ── Prueba Social ── */
+        .social-proof-bar { display: flex; align-items: center; justify-content: center; gap: 0; margin: 0 20px 20px; border-radius: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 16px; }
+        .sp-stat { flex: 1; text-align: center; }
+        .sp-num { display: block; font-size: 1.4rem; font-weight: 900; color: #fff; line-height: 1; }
+        .sp-label { display: block; font-size: 0.7rem; color: #71717a; margin-top: 2px; }
+        .sp-divider { width: 1px; height: 32px; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+        .testimonial-card { margin: 0 20px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; }
+        .testimonial-stars { color: #f59e0b; font-size: 0.9rem; margin-bottom: 6px; }
+        .testimonial-text { font-size: 0.9rem; color: #e4e4e7; line-height: 1.5; font-style: italic; }
+        .testimonial-author { font-size: 0.75rem; color: #71717a; margin-top: 8px; }
+
+        /* ── Hispano ── */
+        .cuotas-badge { margin-top: 8px; display: inline-block; font-size: 0.85rem; font-weight: 700; color: #22c55e; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); border-radius: 8px; padding: 6px 12px; }
+        .trust-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 20px 20px; padding: 14px 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; }
+        .trust-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #a1a1aa; white-space: nowrap; }
+
+        @media (min-width: 768px) {
+          .pain-block { padding: 0 32px 20px; }
+          .solution-reveal { padding: 24px 32px 0; }
+          .social-proof-bar { margin: 0 32px 20px; }
+          .testimonial-card { margin: 0 32px 12px; }
+          .trust-bar { margin: 0 32px 20px; }
+          .cuotas-badge { font-size: 0.9rem; }
+        }
+        @media (min-width: 1024px) {
+          .pain-block { padding: 0 48px 24px; }
+          .solution-reveal { padding: 28px 48px 0; }
+          .social-proof-bar { margin: 0 48px 24px; }
+          .testimonial-card { margin: 0 48px 14px; }
+          .trust-bar { margin: 0 48px 24px; }
+        }
+      ` }} />
 
       {isPreview && (
         <div className="preview-banner">
@@ -300,100 +545,15 @@ export default async function TiendaSlugPage({ params, searchParams }: Props) {
 
           {/* ── LEFT COLUMN: Image gallery (sticky on tablet/desktop) ── */}
           <div className="col-left">
-            <div className="gallery">
-              <div className="gallery-scroll" id="gallery-scroll">
-                {images.length > 0 ? (
-                  images.map((img, i) => (
-                    <div className="gallery-img-wrap" key={i}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.url} alt={img.alt} loading={i === 0 ? "eager" : "lazy"} />
-                    </div>
-                  ))
-                ) : (
-                  <div className="gallery-placeholder"><span>📦</span></div>
-                )}
-              </div>
-              {images.length > 1 && (
-                <div className="gallery-dots">
-                  {images.map((_, i) => (
-                    <div key={i} className={`gallery-dot${i === 0 ? " active" : ""}`} />
-                  ))}
-                </div>
-              )}
-            </div>
+            <GalleryBlock />
           </div>
 
-          {/* ── RIGHT COLUMN: All content ── */}
+          {/* ── RIGHT COLUMN: Template content ── */}
           <div className="col-right">
-            {/* 1. Brand header */}
-            <div className="brand-header">
-              {campaign.brand_logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={campaign.brand_logo_url} alt={campaign.brand_name ?? ""} className="brand-logo" />
-              ) : (
-                <div className="brand-name">{campaign.brand_name}</div>
-              )}
-              <div className="brand-line" />
-            </div>
-
-            {/* 2. Headline */}
-            <div className="headline-block">
-              <h1 className="headline-text">{campaign.headline}</h1>
-              {campaign.subheadline && (
-                <p className="subheadline-text">{campaign.subheadline}</p>
-              )}
-            </div>
-
-            {/* 3. Price */}
-            <div className="price-block">
-              {comparePrice != null && (
-                <div className="price-compare">{fmt(comparePrice)}</div>
-              )}
-              <div className="price-main">{fmt(realPrice)}</div>
-              <div className="price-note">Precio por unidad · Envío incluido</div>
-            </div>
-
-            {/* 4. Primary CTA */}
-            {campaign.shopify_url ? (
-              <a href={campaign.shopify_url} target="_blank" rel="noopener noreferrer" className="cta-primary">
-                🛒 COMPRAR AHORA
-              </a>
-            ) : (
-              <span className="cta-primary disabled">Próximamente</span>
-            )}
-
-            {/* 5. Benefits */}
-            {benefits.length > 0 && (
-              <div className="benefits-card">
-                <div className="benefits-title">Por qué elegirlo</div>
-                {benefits.map((b, i) => (
-                  <div className="benefit-item" key={i}>
-                    <span className="benefit-emoji">{b.emoji}</span>
-                    <span className="benefit-text">{b.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 6. FOMO bar */}
-            {campaign.fomo_text && (
-              <div className="fomo-bar">
-                <div className="fomo-dot" />
-                <div className="fomo-text">{campaign.fomo_text}</div>
-              </div>
-            )}
-
-            {/* 7. WhatsApp CTA */}
-            {whatsappUrl && (
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="cta-whatsapp">
-                💬 Consultar por WhatsApp
-              </a>
-            )}
-
-            {/* Footer */}
-            <div className="lp-footer">
-              <p>© {new Date().getFullYear()} {campaign.brand_name ?? "ProMarca"} · Todos los derechos reservados</p>
-            </div>
+            {template === "problema-solucion" && <ProblemaContent />}
+            {template === "prueba-social" && <PruebaSocialContent />}
+            {template === "hispano" && <HispanoContent />}
+            {(template === "hero" || !template) && <HeroContent />}
           </div>
 
         </div>

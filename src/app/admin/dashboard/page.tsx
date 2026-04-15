@@ -7,6 +7,10 @@ import {
   TrendingUp,
   ShoppingCart,
   Layers,
+  Megaphone,
+  BrainCircuit,
+  Globe,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +53,11 @@ export default async function DashboardPage() {
     { count: categoryCount },
     { count: clientCount },
     { count: quoteCount },
+    { count: campaignCount },
+    { count: campaignPublishedCount },
+    { count: proSessionCount },
     { data: recentQuotes },
+    { data: recentCampaigns },
     { data: allItems },
     { data: allProducts },
   ] = await Promise.all([
@@ -57,17 +65,22 @@ export default async function DashboardPage() {
     supabase.from("categories").select("id", { count: "exact", head: true }),
     supabase.from("clients").select("id", { count: "exact", head: true }),
     supabase.from("quotes").select("id", { count: "exact", head: true }),
-    // Last 5 quotes with client
+    supabase.from("b2c_campaigns").select("id", { count: "exact", head: true }),
+    supabase.from("b2c_campaigns").select("id", { count: "exact", head: true }).eq("status", "published"),
+    supabase.from("pro_sessions").select("id", { count: "exact", head: true }),
     supabase
       .from("quotes")
       .select("id, quote_number, status, total, created_at, client:clients(name, company)")
       .order("created_at", { ascending: false })
       .limit(5),
-    // All quote items for analytics
+    supabase
+      .from("b2c_campaigns")
+      .select("id, slug, headline, status, template, created_at, product:products(name)")
+      .order("created_at", { ascending: false })
+      .limit(4),
     supabase
       .from("quote_items")
       .select("product_id, product_name, product_reference, quantity, marking_type"),
-    // Products with category info
     supabase
       .from("products")
       .select("id, name, category_id, category:categories(name, icon)"),
@@ -145,11 +158,20 @@ export default async function DashboardPage() {
     .sort((a, b) => b.qty - a.qty);
   const maxMarkingQty = markingStats[0]?.qty ?? 1;
 
+  const TEMPLATE_LABEL: Record<string, string> = {
+    "hero": "⚡ Hero", "problema-solucion": "🎯 Prob→Sol",
+    "prueba-social": "⭐ Prueba Social", "hispano": "🇨🇴 Hispano",
+  };
+  const CAMPAIGN_STATUS_COLOR: Record<string, string> = { draft: "bg-zinc-100 text-zinc-600", published: "bg-green-100 text-green-700" };
+  const CAMPAIGN_STATUS_LABEL: Record<string, string> = { draft: "Borrador", published: "Publicada" };
+
   const statCards = [
     { label: "Productos", count: productCount ?? 0, icon: Package, href: "/admin/catalogo", color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Categorías", count: categoryCount ?? 0, icon: FolderOpen, href: "/admin/catalogo/categorias", color: "text-green-600", bg: "bg-green-50" },
     { label: "Clientes", count: clientCount ?? 0, icon: Users, href: "/admin/clientes", color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Cotizaciones", count: quoteCount ?? 0, icon: FileText, href: "/admin/cotizaciones", color: "text-orange-600", bg: "bg-orange-50" },
+    { label: "Ventas B2C", count: campaignCount ?? 0, icon: Megaphone, href: "/admin/campanas", color: "text-pink-600", bg: "bg-pink-50" },
+    { label: "Sesiones Pro", count: proSessionCount ?? 0, icon: BrainCircuit, href: "/admin/pro", color: "text-violet-600", bg: "bg-violet-50" },
   ];
 
   return (
@@ -162,7 +184,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {statCards.map((s) => (
           <Link key={s.label} href={s.href}>
             <Card className="transition-shadow hover:shadow-md">
@@ -333,6 +355,63 @@ export default async function DashboardPage() {
                   <p className="text-xs text-zinc-400">{cat.qty.toLocaleString("es-CO")} unidades</p>
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Row 3b: Ventas B2C ── */}
+      <div className="mt-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-pink-500" /> Ventas B2C
+              </CardTitle>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {campaignPublishedCount ?? 0} publicada{(campaignPublishedCount ?? 0) !== 1 ? "s" : ""} de {campaignCount ?? 0} total
+              </p>
+            </div>
+            <Link href="/admin/campanas/nueva" className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-orange-600 transition-colors">
+              + Nueva campaña
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {(recentCampaigns ?? []).length === 0 ? (
+              <div className="text-center py-6 space-y-2">
+                <p className="text-sm text-zinc-400">No hay campañas aún.</p>
+                <Link href="/admin/campanas/nueva" className="text-sm text-orange-500 hover:underline">Crear la primera →</Link>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {(recentCampaigns ?? []).map((c) => (
+                  <Link key={c.id} href={`/admin/campanas/${c.id}/editar`}
+                    className="group rounded-xl border border-zinc-200 bg-zinc-50 p-3 space-y-2 hover:border-orange-300 hover:bg-orange-50/50 transition-all">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-semibold text-zinc-800 leading-snug line-clamp-2 flex-1">{c.headline ?? "Sin título"}</p>
+                      <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CAMPAIGN_STATUS_COLOR[c.status]}`}>
+                        {CAMPAIGN_STATUS_LABEL[c.status]}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400 truncate">{(c.product as any)?.name ?? "—"}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-400">{TEMPLATE_LABEL[c.template] ?? c.template}</span>
+                      {c.status === "published" && (
+                        <a href={`/tienda/${c.slug}`} target="_blank" rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-0.5 text-[10px] text-orange-500 hover:underline">
+                          <Globe className="h-2.5 w-2.5" /> Ver
+                        </a>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {(campaignCount ?? 0) > 4 && (
+              <div className="mt-3 text-center">
+                <Link href="/admin/campanas" className="text-xs text-orange-500 hover:text-orange-600 font-medium">Ver todas las campañas →</Link>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Trash2, ExternalLink, Loader2, Monitor, Tablet, Smartphone, X } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Loader2, Monitor, Tablet, Smartphone, X, BrainCircuit, Check } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 const EMOJI_OPTIONS = [
   "✅","⭐","💯","🏆","🎯","👍","🌟","🔥","⚡","🚀",
@@ -38,6 +39,62 @@ interface Benefit {
   text: string;
 }
 
+type LandingTemplate = "hero" | "problema-solucion" | "prueba-social" | "hispano";
+
+const LANDING_TEMPLATES: { id: LandingTemplate; label: string; emoji: string; desc: string; best_for: string }[] = [
+  {
+    id: "hero",
+    label: "Beneficio Directo",
+    emoji: "⚡",
+    desc: "Imagen grande → headline → precio → CTA → beneficios",
+    best_for: "Retargeting · audiencia que ya conoce el producto",
+  },
+  {
+    id: "problema-solucion",
+    label: "Problema → Solución",
+    emoji: "🎯",
+    desc: "Dolor → agitación → producto como solución → precio → CTA",
+    best_for: "Audiencia fría · TOFU · producto que resuelve frustración",
+  },
+  {
+    id: "prueba-social",
+    label: "Prueba Social",
+    emoji: "⭐",
+    desc: "Testimonios → producto → beneficios → precio → CTA",
+    best_for: "Cuando ya tienes clientes satisfechos · alto volumen de reviews",
+  },
+  {
+    id: "hispano",
+    label: "Hispano / Colombia",
+    emoji: "🇨🇴",
+    desc: "WhatsApp prominente · cuotas visibles · confianza local",
+    best_for: "Mercado colombiano · tickets > $50.000 COP · cierre por WA",
+  },
+];
+
+interface ProPrefill {
+  product_id: string;
+  product_name: string;
+  pro_session_id: string | null;
+  headline: string;
+  subheadline: string;
+  benefits: { emoji: string; text: string }[];
+  fomo_text: string;
+  compare_price_suggestion: number;
+  template: LandingTemplate;
+  template_reason: string;
+  campaign_angle: string;
+  session_title: string;
+  timestamp: number;
+}
+
+interface Testimonial {
+  name: string;
+  city: string;
+  text: string;
+  rating: number;
+}
+
 interface CampaignData {
   id?: string;
   product_id: string | null;
@@ -49,10 +106,13 @@ interface CampaignData {
   compare_price: string;
   price_override: string;
   benefits: Benefit[];
+  testimonials: Testimonial[];
   fomo_text: string;
   whatsapp_number: string;
   shopify_url: string;
   primary_color: string;
+  template: LandingTemplate;
+  pro_session_id: string | null;
   status: "draft" | "published";
 }
 
@@ -72,6 +132,7 @@ function toSlug(text: string): string {
 
 export function CampaignForm({ initialData }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const isEditing = !!initialData?.id;
 
@@ -88,12 +149,12 @@ export function CampaignForm({ initialData }: Props) {
   const [previewDevice, setPreviewDevice] = useState<DeviceSize>("mobile");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<null | {
-    headline: string;
-    subheadline: string;
+    headline: string; subheadline: string;
     benefits: { emoji: string; text: string }[];
-    fomo_text: string;
-    compare_price_suggestion: number;
+    fomo_text: string; compare_price_suggestion: number;
   }>(null);
+  const [proPrefill, setProPrefill] = useState<ProPrefill | null>(null);
+  const [proPrefillApplied, setProPrefillApplied] = useState(false);
 
   const [form, setForm] = useState<CampaignData>({
     product_id: initialData?.product_id ?? null,
@@ -104,15 +165,33 @@ export function CampaignForm({ initialData }: Props) {
     subheadline: initialData?.subheadline ?? "",
     compare_price: initialData?.compare_price ?? "",
     price_override: initialData?.price_override ?? "",
-    benefits: initialData?.benefits?.length
-      ? initialData.benefits
-      : [{ emoji: "⚡", text: "" }],
+    benefits: initialData?.benefits?.length ? initialData.benefits : [{ emoji: "⚡", text: "" }],
+    testimonials: (initialData as any)?.testimonials?.length ? (initialData as any).testimonials : [],
     fomo_text: initialData?.fomo_text ?? "🔥 7 personas viendo este producto ahora",
     whatsapp_number: initialData?.whatsapp_number ?? "",
     shopify_url: initialData?.shopify_url ?? "",
     primary_color: initialData?.primary_color ?? "#FF6B2C",
+    template: (initialData as any)?.template ?? "hero",
+    pro_session_id: (initialData as any)?.pro_session_id ?? null,
     status: initialData?.status ?? "draft",
   });
+
+  // ── Check for Pro prefill on mount ───────────────────────────────────────
+  useEffect(() => {
+    const fromPro = searchParams.get("from_pro");
+    if (!fromPro) return;
+    try {
+      const raw = localStorage.getItem("pro_prefill");
+      if (!raw) return;
+      const data: ProPrefill = JSON.parse(raw);
+      // Only use if fresh (< 10 minutes)
+      if (Date.now() - data.timestamp > 10 * 60 * 1000) { localStorage.removeItem("pro_prefill"); return; }
+      setProPrefill(data);
+      // Pre-select product
+      const productId = searchParams.get("product_id") ?? data.product_id;
+      if (productId) setForm((prev) => ({ ...prev, product_id: productId }));
+    } catch { /* ignore */ }
+  }, [searchParams]);
 
   const selectedProduct: SimpleProduct | null = products.find((p) => p.id === form.product_id) ?? null;
 
@@ -199,10 +278,13 @@ export function CampaignForm({ initialData }: Props) {
       compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
       price_override: form.price_override ? parseFloat(form.price_override) : null,
       benefits: form.benefits.filter((b) => b.text.trim()),
+      testimonials: form.testimonials.filter((t) => t.text.trim()),
       fomo_text: form.fomo_text.trim() || null,
       whatsapp_number: form.whatsapp_number.trim() || null,
       shopify_url: form.shopify_url.trim() || null,
       primary_color: form.primary_color,
+      template: form.template,
+      pro_session_id: form.pro_session_id ?? null,
       status: targetStatus,
     };
 
@@ -299,12 +381,27 @@ export function CampaignForm({ initialData }: Props) {
       subheadline: suggestions.subheadline,
       benefits: suggestions.benefits,
       fomo_text: suggestions.fomo_text,
-      compare_price: suggestions.compare_price_suggestion > 0
-        ? String(suggestions.compare_price_suggestion)
-        : prev.compare_price,
+      compare_price: suggestions.compare_price_suggestion > 0 ? String(suggestions.compare_price_suggestion) : prev.compare_price,
     }));
     setAiSuggestions(null);
     toast.success("✨ Sugerencias aplicadas");
+  };
+
+  const applyProPrefill = () => {
+    if (!proPrefill) return;
+    setForm((prev) => ({
+      ...prev,
+      headline: proPrefill.headline,
+      subheadline: proPrefill.subheadline,
+      benefits: proPrefill.benefits,
+      fomo_text: proPrefill.fomo_text,
+      compare_price: proPrefill.compare_price_suggestion > 0 ? String(proPrefill.compare_price_suggestion) : prev.compare_price,
+      template: proPrefill.template,
+      pro_session_id: proPrefill.pro_session_id,
+    }));
+    setProPrefillApplied(true);
+    localStorage.removeItem("pro_prefill");
+    toast.success("🎯 Estrategia de Pro aplicada");
   };
 
   const fmtPrice = (n: number) =>
@@ -322,6 +419,101 @@ export function CampaignForm({ initialData }: Props) {
 
   return (
     <div className="space-y-6 max-w-2xl">
+
+      {/* ── Pro Prefill Banner ─────────────────────────────────────────── */}
+      {proPrefill && !proPrefillApplied && (
+        <div className="rounded-xl border border-violet-300 bg-gradient-to-r from-violet-50 to-purple-50 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">P</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-violet-900 flex items-center gap-1.5">
+                <BrainCircuit className="h-4 w-4" />
+                Pro generó una estrategia para este producto
+              </p>
+              <p className="text-xs text-violet-700 mt-0.5">{proPrefill.session_title}</p>
+              <p className="text-xs text-violet-600 mt-1 italic">&ldquo;{proPrefill.campaign_angle}&rdquo;</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-white/70 border border-violet-100 p-2">
+              <p className="text-[10px] text-violet-500 font-semibold uppercase mb-0.5">Título</p>
+              <p className="text-zinc-800 font-medium line-clamp-2">{proPrefill.headline}</p>
+            </div>
+            <div className="rounded-lg bg-white/70 border border-violet-100 p-2">
+              <p className="text-[10px] text-violet-500 font-semibold uppercase mb-0.5">Template</p>
+              <p className="text-zinc-800 font-medium">{LANDING_TEMPLATES.find((t) => t.id === proPrefill.template)?.emoji} {LANDING_TEMPLATES.find((t) => t.id === proPrefill.template)?.label}</p>
+              <p className="text-[10px] text-zinc-400 mt-0.5">{proPrefill.template_reason}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={applyProPrefill}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 text-white text-sm font-medium py-2 hover:bg-violet-700 transition-colors"
+            >
+              <Check className="h-3.5 w-3.5" /> Aplicar estrategia de Pro
+            </button>
+            <button
+              type="button"
+              onClick={() => { setProPrefill(null); localStorage.removeItem("pro_prefill"); }}
+              className="px-3 rounded-lg border border-violet-200 text-violet-600 text-sm hover:bg-violet-50 transition-colors"
+            >
+              Ignorar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {proPrefillApplied && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-2.5">
+          <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <p className="text-sm text-green-800 font-medium">Estrategia de Pro aplicada — revisa y ajusta los campos a tu gusto</p>
+          <a href="/admin/pro" className="ml-auto text-xs text-green-600 hover:underline flex items-center gap-1"><BrainCircuit className="h-3 w-3" />Ver sesión →</a>
+        </div>
+      )}
+
+      {/* ── Template selector ─────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>0. Plantilla de landing</span>
+            <span className="text-xs font-normal text-zinc-400">¿Cómo está estructurada la página?</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            {LANDING_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, template: tpl.id }))}
+                className={`group flex flex-col gap-2 rounded-xl border-2 p-3 text-left transition-all ${
+                  form.template === tpl.id
+                    ? "border-orange-500 bg-orange-50 shadow-sm shadow-orange-100"
+                    : "border-zinc-200 hover:border-orange-300 hover:bg-zinc-50"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{tpl.emoji}</span>
+                    <span className="text-sm font-semibold text-zinc-800">{tpl.label}</span>
+                  </div>
+                  {form.template === tpl.id && <Check className="h-4 w-4 text-orange-500 flex-shrink-0" />}
+                </div>
+                <p className="text-[11px] text-zinc-500 leading-snug">{tpl.desc}</p>
+                <p className="text-[10px] text-zinc-400 italic">{tpl.best_for}</p>
+              </button>
+            ))}
+          </div>
+          {proPrefillApplied && (
+            <p className="text-xs text-violet-600 mt-2 flex items-center gap-1">
+              <BrainCircuit className="h-3 w-3" />
+              Pro recomendó: <strong>{LANDING_TEMPLATES.find((t) => t.id === form.template)?.label}</strong>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Section 1 – Producto base */}
       <Card>
         <CardHeader>
@@ -707,6 +899,85 @@ export function CampaignForm({ initialData }: Props) {
           <p className="text-xs text-zinc-400">Máximo 6 beneficios</p>
         </CardContent>
       </Card>
+
+      {/* Section 4b – Testimonios (solo visible en template prueba-social) */}
+      {form.template === "prueba-social" && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <span>⭐ Testimonios de clientes</span>
+              <span className="text-xs font-normal text-zinc-400">Requerido para el template Prueba Social</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {form.testimonials.map((t, i) => (
+              <div key={i} className="rounded-xl border border-amber-200 bg-white p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1">
+                    {[1,2,3,4,5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => {
+                          const updated = form.testimonials.map((x, idx) => idx === i ? { ...x, rating: star } : x);
+                          set("testimonials", updated);
+                        }}
+                        className={`text-lg leading-none transition-colors ${star <= t.rating ? "text-amber-400" : "text-zinc-200 hover:text-amber-200"}`}
+                      >★</button>
+                    ))}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => set("testimonials", form.testimonials.filter((_, idx) => idx !== i))}>
+                    <Trash2 className="h-4 w-4 text-red-400" />
+                  </Button>
+                </div>
+                <Textarea
+                  value={t.text}
+                  onChange={(e) => {
+                    const updated = form.testimonials.map((x, idx) => idx === i ? { ...x, text: e.target.value } : x);
+                    set("testimonials", updated);
+                  }}
+                  placeholder='"Excelente calidad, llegó en 2 días y el producto superó mis expectativas..."'
+                  rows={2}
+                  className="text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={t.name}
+                    onChange={(e) => {
+                      const updated = form.testimonials.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x);
+                      set("testimonials", updated);
+                    }}
+                    placeholder="Nombre (ej: Carlos M.)"
+                    className="text-sm"
+                  />
+                  <Input
+                    value={t.city}
+                    onChange={(e) => {
+                      const updated = form.testimonials.map((x, idx) => idx === i ? { ...x, city: e.target.value } : x);
+                      set("testimonials", updated);
+                    }}
+                    placeholder="Ciudad (ej: Bogotá)"
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            ))}
+            {form.testimonials.length < 5 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => set("testimonials", [...form.testimonials, { name: "", city: "", text: "", rating: 5 }])}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" /> Agregar testimonio
+              </Button>
+            )}
+            {form.testimonials.length === 0 && (
+              <p className="text-xs text-zinc-400 italic">Sin testimonios — la landing usará placeholders genéricos</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Section 5 – FOMO y contacto */}
       <Card>

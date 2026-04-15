@@ -143,7 +143,6 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
   const summaryRows = `
     <div class="summary-row"><span>Subtotal</span><span>${formatPrice(quote.subtotal)}</span></div>
     ${quote.discount_percent > 0 ? `<div class="summary-row"><span>Descuento (${quote.discount_percent}%)</span><span class="neg">-${formatPrice(discountAmount)}</span></div>` : ""}
-    ${quote.iva_percent > 0 ? `<div class="summary-row"><span>IVA (${quote.iva_percent}%)</span><span>${formatPrice(ivaAmount)}</span></div>` : ""}
     <div class="summary-row summary-total"><span>TOTAL</span><span>${formatPrice(totalGeneral)}</span></div>
   `;
 

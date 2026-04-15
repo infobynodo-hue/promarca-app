@@ -239,18 +239,6 @@ export default function CotizacionDetailPage({
                   </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-zinc-500">IVA ({quote.iva_percent}%)</span>
-                <span>
-                  {formatPrice(
-                    Math.round(
-                      (quote.subtotal -
-                        quote.subtotal * (quote.discount_percent / 100)) *
-                        (quote.iva_percent / 100)
-                    )
-                  )}
-                </span>
-              </div>
               <Separator />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>

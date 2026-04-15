@@ -70,7 +70,7 @@ export default function NuevaCotizacionPage() {
   const [clientId, setClientId] = useState("");
   const [items, setItems] = useState<LineItem[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [ivaPercent] = useState(19);
+  const ivaPercent = 0; // IVA ya incluido en precio unitario
   const [notes, setNotes] = useState("");
   const [validDays, setValidDays] = useState(15);
 
@@ -110,8 +110,7 @@ export default function NuevaCotizacionPage() {
   );
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const baseAfterDiscount = subtotal - discountAmount;
-  const ivaAmount = Math.round(baseAfterDiscount * (ivaPercent / 100));
-  const total = baseAfterDiscount + ivaAmount;
+  const total = baseAfterDiscount; // Sin IVA adicional (ya incluido en precio unitario)
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat("es-CO", {
@@ -541,10 +540,6 @@ export default function NuevaCotizacionPage() {
                     -{formatPrice(discountAmount)}
                   </span>
                 </div>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">IVA ({ivaPercent}%)</span>
-                <span>{formatPrice(ivaAmount)}</span>
               </div>
               <Separator />
               <div className="flex justify-between text-lg font-bold">

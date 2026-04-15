@@ -105,7 +105,10 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
   // ── Product cards ─────────────────────────────────────────────────────────
   const productCards = items.map((item: any) => {
     const imgUrl = imageMap[item.product_id] ?? null;
-    const lineTotal = item.line_total ?? (item.quantity * item.unit_price + item.quantity * (item.marking_price ?? 0));
+    const markingPrice: number = item.marking_price ?? 0;
+    const hasMarking = item.marking_type && item.marking_type !== "Sin marcado" && markingPrice > 0;
+    const unitWithMarking: number = item.unit_price + markingPrice;
+    const lineTotal: number = item.line_total ?? (item.quantity * unitWithMarking);
 
     return `
     <div class="product-card">
@@ -118,17 +121,18 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
         <div class="price-row">
           <div class="price-block">
             <span class="price-main">${formatPrice(item.unit_price)}</span>
-            <span class="price-label">1 und</span>
+            <span class="price-label">1 und sin marca</span>
           </div>
+          ${hasMarking ? `
+          <div class="price-block">
+            <span class="price-main">${formatPrice(unitWithMarking)}</span>
+            <span class="price-label">1 und con ${item.marking_type}</span>
+          </div>` : ""}
           <div class="price-block">
             <span class="price-main price-total">${formatPrice(lineTotal)}</span>
             <span class="price-label">${item.quantity} unds</span>
           </div>
         </div>
-        ${item.marking_type && item.marking_type !== "Sin marcado" ? `
-        <p class="marking-label">
-          ${item.marking_type}${item.marking_price > 0 ? ` · +${formatPrice(item.marking_price)}/und` : ""}
-        </p>` : ""}
       </div>
       <div class="product-image-wrap">
         ${imgUrl
@@ -271,20 +275,19 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     max-width: 340px;
   }
   .price-row {
-    display: flex; gap: 28px; margin-top: 4px;
+    display: flex; gap: 18px; margin-top: 4px; align-items: flex-start; flex-wrap: wrap;
   }
   .price-block { display: flex; flex-direction: column; gap: 1px; }
+  .price-block + .price-block {
+    padding-left: 18px;
+    border-left: 1px solid #ebebeb;
+  }
   .price-main {
-    font-size: 18px; font-weight: 800; color: #111; line-height: 1;
+    font-size: 16px; font-weight: 800; color: #111; line-height: 1;
   }
   .price-total { color: ${primary}; }
   .price-label {
-    font-size: 10px; color: #aaa; font-weight: 500;
-  }
-  .marking-label {
-    font-size: 10px; color: #888; border-top: 1px solid #f0f0f0;
-    padding-top: 8px; margin-top: 2px;
-    font-style: italic;
+    font-size: 10px; color: #aaa; font-weight: 500; margin-top: 2px;
   }
   .product-image-wrap {
     width: 160px;

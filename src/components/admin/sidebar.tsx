@@ -48,10 +48,9 @@ export function AdminSidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-zinc-800 px-6">
         <img
-          src="/img/promarca-logo.png"
+          src="/img/promarca-logo-dark.png"
           alt="ProMarca"
-          className="h-7 w-auto"
-          style={{ filter: "brightness(0) invert(1)" }}
+          className="h-8 w-auto"
         />
       </div>
 

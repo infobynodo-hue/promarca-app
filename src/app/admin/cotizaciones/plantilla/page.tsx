@@ -67,161 +67,13 @@ const DEFAULTS: Settings = {
   quote_website: "promarca.co",
 };
 
-// ── Sample quote data for preview ──────────────────────────────────────────
-const SAMPLE = {
-  quote_number: "COT-2025-0042",
-  created_at: new Date().toISOString(),
-  valid_until: new Date(Date.now() + 15 * 86400000).toISOString(),
-  subtotal: 3500000,
-  discount_percent: 10,
-  iva_percent: 19,
-  notes: "Incluye entrega en Bogotá. Diseño aprobado por el cliente.",
-  client: {
-    name: "Laura Gómez",
-    company: "Café La Sierra S.A.S.",
-    nit: "900.123.456-1",
-    email: "laura@cafelasiera.co",
-    phone: "+57 310 456 7890",
-    address: "Calle 93 # 15-47",
-    city: "Bogotá",
-  },
-  items: [
-    {
-      product_reference: "TM-2201",
-      product_name: "Termo Acero Inox 500ml",
-      quantity: 100,
-      unit_price: 18000,
-      marking_type: "Grabado láser",
-      marking_price: 3500,
-      line_total: 2150000,
-    },
-    {
-      product_reference: "MU-105",
-      product_name: "Mugs Cerámicos Blancos 11oz",
-      quantity: 50,
-      unit_price: 12000,
-      marking_type: "Sublimación",
-      marking_price: 4000,
-      line_total: 800000,
-    },
-    {
-      product_reference: "LA-320",
-      product_name: "Lapicero Metálico Premium",
-      quantity: 200,
-      unit_price: 2750,
-      marking_type: "1 tinta",
-      marking_price: 500,
-      line_total: 550000,
-    },
-  ],
-};
-
-function formatCOP(n: number) {
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(n);
-}
-
-function buildPreviewHTML(s: Settings): string {
-  const primary = s.quote_primary_color;
-  const discountAmount = Math.round(SAMPLE.subtotal * (SAMPLE.discount_percent / 100));
-  const baseAfterDiscount = SAMPLE.subtotal - discountAmount;
-  const ivaAmount = Math.round(baseAfterDiscount * (SAMPLE.iva_percent / 100));
-  const total = baseAfterDiscount + ivaAmount;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1d1d1f; padding: 40px; font-size: 12px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
-  .logo { font-size: 24px; font-weight: 700; }
-  .logo span { color: ${primary}; }
-  .quote-info { text-align: right; }
-  .quote-number { font-size: 18px; font-weight: 700; color: ${primary}; }
-  .client-box { background: #f5f5f7; border-radius: 8px; padding: 20px; margin-bottom: 30px; }
-  .client-box h3 { font-size: 11px; text-transform: uppercase; color: #6e6e73; margin-bottom: 8px; letter-spacing: 0.05em; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-  th { background: #1d1d1f; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; }
-  td { padding: 10px 12px; border-bottom: 1px solid #e5e5e7; }
-  .text-right { text-align: right; }
-  .summary { float: right; width: 280px; }
-  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; }
-  .summary-total { font-size: 18px; font-weight: 700; border-top: 2px solid #1d1d1f; padding-top: 10px; margin-top: 6px; }
-  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #e5e5e7; font-size: 10px; color: #6e6e73; }
-  .notes { background: #FFFBF5; border: 1px solid #FFE0C0; border-radius: 8px; padding: 16px; margin-bottom: 30px; }
-  .sample-badge { display:inline-block; background:#f5f5f7; border-radius:4px; padding:2px 8px; font-size:10px; color:#6e6e73; margin-top:6px; }
-</style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="logo"><span>${s.quote_company_name.slice(0, 3)}</span>${s.quote_company_name.slice(3)}</div>
-      <p style="color:#6e6e73; margin-top:4px;">${s.quote_company_tagline}</p>
-      <p style="color:#6e6e73;">${s.quote_company_email} | ${s.quote_company_phone}</p>
-    </div>
-    <div class="quote-info">
-      <div class="quote-number">${SAMPLE.quote_number}</div>
-      <p style="color:#6e6e73;">Fecha: ${new Date(SAMPLE.created_at).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}</p>
-      <p style="color:#6e6e73;">Válida hasta: ${new Date(SAMPLE.valid_until).toLocaleDateString("es-CO")}</p>
-      <span class="sample-badge">Vista previa — datos de ejemplo</span>
-    </div>
-  </div>
-  <div class="client-box">
-    <h3>Datos del cliente</h3>
-    <p><strong>${SAMPLE.client.name}</strong></p>
-    <p>${SAMPLE.client.company}</p>
-    <p>NIT: ${SAMPLE.client.nit}</p>
-    <p>${SAMPLE.client.email}</p>
-    <p>${SAMPLE.client.phone}</p>
-    <p>${SAMPLE.client.address}, ${SAMPLE.client.city}</p>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Ref.</th><th>Producto</th><th>Cant.</th><th>Precio Unit.</th><th>Marcado</th><th class="text-right">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${SAMPLE.items.map((item) => `
-      <tr>
-        <td><strong>${item.product_reference}</strong></td>
-        <td>${item.product_name}</td>
-        <td>${item.quantity}</td>
-        <td>${formatCOP(item.unit_price)}</td>
-        <td>${item.marking_type}${item.marking_price > 0 ? ` (+${formatCOP(item.marking_price)}/u)` : ""}</td>
-        <td class="text-right"><strong>${formatCOP(item.line_total)}</strong></td>
-      </tr>`).join("")}
-    </tbody>
-  </table>
-  <div class="notes"><strong>Notas:</strong> ${SAMPLE.notes}</div>
-  <div class="summary">
-    <div class="summary-row"><span>Subtotal</span><span>${formatCOP(SAMPLE.subtotal)}</span></div>
-    <div class="summary-row"><span>Descuento (${SAMPLE.discount_percent}%)</span><span style="color:red">-${formatCOP(discountAmount)}</span></div>
-    <div class="summary-row"><span>IVA (${SAMPLE.iva_percent}%)</span><span>${formatCOP(ivaAmount)}</span></div>
-    <div class="summary-row summary-total"><span>TOTAL</span><span>${formatCOP(total)}</span></div>
-  </div>
-  <div style="clear:both;"></div>
-  <div class="footer">
-    <p><strong>Condiciones:</strong> ${s.quote_conditions}</p>
-    <p style="margin-top:4px;"><strong>Pago:</strong> ${s.quote_payment_terms}</p>
-    ${s.quote_footer_extra ? `<p style="margin-top:4px;">${s.quote_footer_extra}</p>` : ""}
-    <p style="margin-top:8px;">${s.quote_company_name} — ${s.quote_company_tagline} | NIT: ${s.quote_company_nit}</p>
-  </div>
-</body>
-</html>`;
-}
 
 export default function PlantillaPage() {
   const supabase = createClient();
   const [settings, setSettings] = useState<Settings>({ ...DEFAULTS });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewKey, setPreviewKey] = useState(0);
   const [firstQuoteId, setFirstQuoteId] = useState<string | null>(null);
 
   // Saved templates
@@ -260,12 +112,7 @@ export default function PlantillaPage() {
     fetchTemplates();
   }, []);
 
-  // Regenerate preview whenever settings change
-  useEffect(() => {
-    if (!loading) {
-      setPreviewHtml(buildPreviewHTML(settings));
-    }
-  }, [settings, loading]);
+  // (preview is now the real PDF iframe — reloads on save)
 
   // Save current settings to app_settings (active template)
   const handleSave = async () => {
@@ -280,7 +127,8 @@ export default function PlantillaPage() {
     if (error) {
       toast.error("Error al guardar: " + error.message);
     } else {
-      toast.success("Plantilla guardada correctamente");
+      toast.success("Plantilla guardada — preview actualizado");
+      setPreviewKey((k) => k + 1); // reload the real PDF iframe
     }
     setSaving(false);
   };
@@ -479,22 +327,36 @@ export default function PlantillaPage() {
           </Card>
         </div>
 
-        {/* ── CENTER: Live preview ── */}
+        {/* ── CENTER: Real PDF preview ── */}
         <div className="flex flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-700">Vista previa en tiempo real</p>
+            <div>
+              <p className="text-sm font-medium text-zinc-700">Preview del PDF real</p>
+              <p className="text-xs text-zinc-400">Muestra tu cotización más reciente con los ajustes actuales</p>
+            </div>
             <span className="text-xs text-zinc-400 flex items-center gap-1">
-              <RefreshCw className="h-3 w-3" /> Se actualiza al escribir
+              <RefreshCw className="h-3 w-3" /> Se actualiza al guardar
             </span>
           </div>
-          <div className="flex-1 rounded-xl border border-zinc-200 overflow-hidden bg-white shadow-sm" style={{ minHeight: "820px" }}>
-            <iframe
-              srcDoc={previewHtml}
-              className="h-full w-full"
-              style={{ minHeight: "820px", border: "none" }}
-              title="Vista previa de plantilla"
-              sandbox="allow-same-origin"
-            />
+          <div className="flex-1 rounded-xl border border-zinc-200 overflow-hidden bg-zinc-50 shadow-sm" style={{ minHeight: "820px" }}>
+            {firstQuoteId ? (
+              <iframe
+                key={previewKey}
+                src={`/api/quotes/${firstQuoteId}/pdf?preview=1`}
+                className="h-full w-full"
+                style={{ minHeight: "820px", border: "none" }}
+                title="PDF real de cotización"
+                sandbox="allow-same-origin allow-scripts"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center" style={{ minHeight: "820px" }}>
+                <div className="text-center text-zinc-400">
+                  <p className="text-4xl mb-3">📄</p>
+                  <p className="text-sm font-medium">Sin cotizaciones aún</p>
+                  <p className="text-xs mt-1">Crea una cotización primero para ver el preview real</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

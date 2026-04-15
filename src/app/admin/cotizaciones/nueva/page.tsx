@@ -205,7 +205,11 @@ export default function NuevaCotizacionPage() {
 
     setSaving(true);
 
-    const num = String(Date.now()).slice(-4);
+    // Sequential numbering: count existing quotes + 1
+    const { count: quoteCount } = await supabase
+      .from("quotes")
+      .select("id", { count: "exact", head: true });
+    const num = String((quoteCount ?? 0) + 1).padStart(4, "0");
     const quoteNumber = `COT-${new Date().getFullYear()}-${num}`;
 
     const validUntil = new Date();

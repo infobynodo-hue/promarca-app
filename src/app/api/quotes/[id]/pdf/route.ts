@@ -8,6 +8,7 @@ export async function GET(
   const { id } = await params;
   const url = new URL(request.url);
   const autoPrint = url.searchParams.get("download") === "1";
+  const isPreview = url.searchParams.get("preview") === "1";
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -83,7 +84,7 @@ export async function GET(
   const html = buildQuoteHTML({
     quote, items, client, s, primary,
     formatPrice, discountAmount, ivaAmount,
-    autoPrint, imageMap,
+    autoPrint, isPreview, imageMap,
   });
 
   return new NextResponse(html, {
@@ -92,7 +93,8 @@ export async function GET(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discountAmount, ivaAmount, autoPrint, imageMap }: any) {
+function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discountAmount, ivaAmount, autoPrint, isPreview, imageMap }: any) {
+  const itemCount: number = items.length;
 
   const clientName = client?.company || client?.name || "Cliente";
   const quoteDate  = new Date(quote.created_at).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" });
@@ -219,19 +221,19 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
 
   /* ── CLIENT NAME ── */
   .client-hero {
-    padding: 36px 32px 28px;
+    padding: 24px 32px 20px;
     background: white;
   }
   .client-hero-label {
     font-size: 10px; font-weight: 600; color: #999;
-    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;
   }
   .client-hero-name {
-    font-size: 48px; font-weight: 800; color: #111;
-    line-height: 1; letter-spacing: -1px;
+    font-size: 36px; font-weight: 800; color: #111;
+    line-height: 1; letter-spacing: -0.5px;
   }
   .quote-meta {
-    margin-top: 10px; display: flex; gap: 20px; font-size: 11px; color: #999;
+    margin-top: 8px; display: flex; gap: 20px; font-size: 11px; color: #999;
   }
   .quote-meta span strong { color: #555; }
 
@@ -430,18 +432,41 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     body { background: white; }
     .page { max-width: 100%; box-shadow: none; }
     .product-card { page-break-inside: avoid; }
+    .recordatorio-box { page-break-inside: avoid; }
+    .info-grid { page-break-inside: avoid; }
     @page { margin: 10mm; size: A4; }
   }
 </style>
-${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},800);});</script>` : ""}
+<script>
+(function() {
+  // ── Auto-zoom: compress to 1 page if overflow is minor (≤ 40%) ──
+  function tryFitOnePage() {
+    var page = document.querySelector('.page');
+    if (!page) return;
+    var contentH = page.scrollHeight;
+    // A4 usable height: 297mm at 96dpi ≈ 1122px, minus 20mm margins ≈ 970px
+    var A4_USABLE = 970;
+    if (contentH > A4_USABLE && contentH <= A4_USABLE * 1.4) {
+      // Minor overflow — scale to fit one page
+      var scale = (A4_USABLE / contentH) * 0.985;
+      page.style.zoom = scale.toString();
+    }
+  }
+  // Run after fonts & images settle
+  if (document.readyState === 'complete') { tryFitOnePage(); }
+  else { window.addEventListener('load', function(){ setTimeout(tryFitOnePage, 400); }); }
+
+  ${autoPrint ? "window.addEventListener('load',function(){setTimeout(function(){window.print();},900);});" : ""}
+})();
+</script>
 </head>
 <body>
 
-<!-- Print toolbar -->
+${isPreview ? "" : `<!-- Print toolbar -->
 <div class="print-toolbar">
   <button class="btn-print" onclick="window.print()">⬇ Descargar PDF</button>
   <button class="btn-close" onclick="window.close()">✕ Cerrar</button>
-</div>
+</div>`}
 
 <div class="page">
 

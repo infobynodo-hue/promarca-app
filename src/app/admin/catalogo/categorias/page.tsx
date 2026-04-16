@@ -212,11 +212,11 @@ export default function CategoriasPage() {
                   <TableCell className="text-zinc-400">{i + 1}</TableCell>
                   <TableCell className="font-medium">
                     {cat.icon && <span className="mr-2">{cat.icon}</span>}
-                    {cat.name}
+                    <span translate="no">{cat.name}</span>
                   </TableCell>
                   <TableCell className="text-zinc-500">
                     <div className="flex items-center gap-1.5">
-                      <span>{cat.slug}</span>
+                      <span translate="no">{cat.slug}</span>
                       <a
                         href={`/catalogo/${cat.slug}`}
                         target="_blank"

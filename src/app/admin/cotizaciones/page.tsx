@@ -152,7 +152,7 @@ export default function CotizacionesPage() {
                         {q.quote_number}
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell translate="no">
                       {(q.client as any)?.company ?? (q.client as any)?.name ?? "—"}
                     </TableCell>
                     <TableCell className="text-zinc-500">

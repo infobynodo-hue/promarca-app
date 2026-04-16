@@ -294,10 +294,10 @@ export default function ProductosPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs font-bold">{p.reference}</TableCell>
-                      <TableCell className="max-w-[200px] truncate font-medium">{p.name}</TableCell>
+                      <TableCell className="max-w-[200px] truncate font-medium" translate="no">{p.name}</TableCell>
                       <TableCell className="text-zinc-500">
                         <div className="flex items-center gap-1.5">
-                          <span>{(p.category as any)?.name ?? "—"}</span>
+                          <span translate="no">{(p.category as any)?.name ?? "—"}</span>
                           {(p.category as any)?.slug && (
                             <a href={`/catalogo/${(p.category as any).slug}`} target="_blank" rel="noopener noreferrer"
                               className="text-zinc-400 hover:text-orange-400 transition-colors">

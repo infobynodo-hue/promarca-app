@@ -153,7 +153,12 @@ export default function CotizacionDetailPage({
                       <TableCell className="font-mono text-xs font-bold">
                         {item.product_reference ?? "—"}
                       </TableCell>
-                      <TableCell>{item.product_name}</TableCell>
+                      <TableCell>
+                        <span className="font-medium">{item.product_name}</span>
+                        {item.notes && (
+                          <p className="text-xs text-zinc-400 mt-0.5 leading-snug">{item.notes}</p>
+                        )}
+                      </TableCell>
                       <TableCell>{item.quantity}</TableCell>
                       <TableCell>{formatPrice(item.unit_price)}</TableCell>
                       <TableCell>

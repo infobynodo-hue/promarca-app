@@ -131,7 +131,7 @@ export default function NuevaCotizacionPage() {
         unit_price: product.price,
         marking_type: "Sin marcado",
         marking_price: 0,
-        notes: "",
+        notes: product.description ?? "",
       },
     ]);
     setShowProductDialog(false);
@@ -453,6 +453,17 @@ export default function NuevaCotizacionPage() {
                           }
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Descripción (aparece en el PDF)</Label>
+                      <Textarea
+                        value={item.notes}
+                        onChange={(e) => updateItem(i, "notes", e.target.value)}
+                        placeholder="Ej: Acero inoxidable 18/8, capacidad 500ml, tapa hermética..."
+                        rows={2}
+                        className="text-xs resize-none"
+                      />
                     </div>
 
                     <div className="text-right text-sm font-medium text-zinc-600">

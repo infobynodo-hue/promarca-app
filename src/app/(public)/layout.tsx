@@ -1,6 +1,7 @@
 import "./public.css";
 import Link from "next/link";
 import { Inter } from "next/font/google";
+import { PublicFooter } from "@/components/PublicFooter";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -38,67 +39,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       {children}
 
       {/* ── Footer ── */}
-      <footer className="footer" id="nosotros">
-        <div className="footer-sosumi">
-          <p>Los precios y disponibilidad están sujetos a cambios sin previo aviso. Los pedidos mínimos varían según el producto. Consulta a nuestro equipo para condiciones especiales en grandes volúmenes.</p>
-        </div>
-        <nav className="footer-dir">
-          <div className="footer-col">
-            <h3>Catálogo</h3>
-            <ul>
-              <li><Link href="/catalogo/mugs">Mugs & Pocillos</Link></li>
-              <li><Link href="/catalogo/termos">Termos & Vasos</Link></li>
-              <li><Link href="/catalogo/gorras">Gorras</Link></li>
-              <li><Link href="/catalogo/lapiceros">Lapiceros</Link></li>
-              <li><Link href="/catalogo/tulas">Tulas & Mochilas</Link></li>
-              <li><Link href="/catalogo/sombrillas">Sombrillas</Link></li>
-              <li><Link href="/catalogo/usb">USB & Tecnología</Link></li>
-              <li><Link href="/#catalogo">Ver todo el catálogo</Link></li>
-            </ul>
-          </div>
-          <div className="footer-col">
-            <h3>Servicios</h3>
-            <ul>
-              <li><Link href="/catalogo/kits">Kits corporativos</Link></li>
-              <li><a href="#">Producción express</a></li>
-              <li><a href="#">Diseño & Arte final</a></li>
-              <li><a href="#">Muestras físicas</a></li>
-              <li><a href="#">Envíos nacionales</a></li>
-              <li><a href="#">Pedidos al por mayor</a></li>
-            </ul>
-          </div>
-          <div className="footer-col">
-            <h3>Empresa</h3>
-            <ul>
-              <li><a href="#">Quiénes somos</a></li>
-              <li><a href="#">Clientes</a></li>
-              <li><a href="#">Casos de éxito</a></li>
-              <li><a href="#">Blog</a></li>
-              <li><a href="#">Trabaja con nosotros</a></li>
-              <li><a href="/#contacto">Contáctanos</a></li>
-            </ul>
-          </div>
-          <div className="footer-col">
-            <h3>Soporte</h3>
-            <ul>
-              <li><a href="#">¿Cómo hacer un pedido?</a></li>
-              <li><a href="#">Tiempos de producción</a></li>
-              <li><a href="#">Guía de arte</a></li>
-              <li><a href="#">Preguntas frecuentes</a></li>
-              <li><a href="#">Estado de mi pedido</a></li>
-              <li><a href="#">Política de cambios</a></li>
-            </ul>
-          </div>
-        </nav>
-        <div className="footer-bottom">
-          <p>Copyright © 2026 ProMarca. Todos los derechos reservados.</p>
-          <div className="footer-legal">
-            <a href="#">Política de privacidad</a>
-            <a href="#">Términos de uso</a>
-            <a href="#">Mapa del sitio</a>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

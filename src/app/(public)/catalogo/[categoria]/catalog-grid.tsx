@@ -128,7 +128,7 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
                   </div>
                 )}
                 <p className="product-ref">{p.reference}</p>
-                <p className="product-name">{p.name}</p>
+                <span className="product-name-glass">{p.name}</span>
                 <div className="product-price-block">
                   {!p.has_variants && <span className="price-badge">{p.price_label}</span>}
                   <p className="product-price">

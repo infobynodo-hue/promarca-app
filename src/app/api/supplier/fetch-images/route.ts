@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const GALLERY_BASE  = "https://catalogospromocionales.com/images/galeria";
 const PRODUCTS_BASE = "https://catalogospromocionales.com/images/productos";
@@ -53,7 +53,7 @@ async function fetchImagesForProduct(
   productId: string,
   reference: string,
   productName: string,
-  supabase: Awaited<ReturnType<typeof createClient>>
+  supabase: ReturnType<typeof createAdminClient>
 ): Promise<FetchResult> {
   // Skip references with special characters or spaces
   if (!reference || /[\s<>{}|\\^`]/.test(reference)) {
@@ -132,11 +132,15 @@ async function fetchImagesForProduct(
 
   // ── 4. Download & upload each image in order ──
   const insertedImages: { storage_path: string; is_primary: boolean; display_order: number; alt_text: string }[] = [];
+  const uploadErrors: string[] = [];
 
   for (let i = 0; i < orderedUrls.length; i++) {
     const { url, isPrimary, label } = orderedUrls[i];
     const buffer = await fetchImageBuffer(url);
-    if (!buffer) continue;
+    if (!buffer) {
+      console.error(`[fetch-images] Failed to download buffer from: ${url}`);
+      continue;
+    }
 
     const storagePath = `${productId}/${ref}-${label}.jpg`;
 
@@ -145,7 +149,9 @@ async function fetchImagesForProduct(
       .upload(storagePath, buffer, { contentType: "image/jpeg", upsert: true });
 
     if (uploadError) {
-      console.error(`Upload error for ${storagePath}:`, uploadError.message);
+      const msg = `Upload error for ${storagePath}: ${uploadError.message}`;
+      console.error(`[fetch-images] ${msg}`);
+      uploadErrors.push(msg);
       continue;
     }
 
@@ -158,17 +164,30 @@ async function fetchImagesForProduct(
   }
 
   if (insertedImages.length === 0) {
-    return { found: false, imagesCount: 0, reference, productId, productName, error: "Error al descargar imágenes" };
+    const errMsg = uploadErrors.length > 0
+      ? `Error al subir imágenes: ${uploadErrors[0]}`
+      : "Error al descargar imágenes";
+    console.error(`[fetch-images] No images saved for ${reference} (${productId}): ${errMsg}`);
+    return { found: false, imagesCount: 0, reference, productId, productName, error: errMsg };
   }
 
+  // Clear any stale primary flags before inserting (prevents double-primary bug)
+  await supabase.from("product_images").update({ is_primary: false }).eq("product_id", productId);
+
+  // Ensure only ONE image in the batch has is_primary true
+  let primaryAssigned = false;
   const { error: insertError } = await supabase.from("product_images").insert(
-    insertedImages.map((img) => ({
-      product_id: productId,
-      storage_path: img.storage_path,
-      is_primary: img.is_primary,
-      display_order: img.display_order,
-      alt_text: img.alt_text,
-    }))
+    insertedImages.map((img) => {
+      const shouldBePrimary = img.is_primary && !primaryAssigned;
+      if (shouldBePrimary) primaryAssigned = true;
+      return {
+        product_id: productId,
+        storage_path: img.storage_path,
+        is_primary: shouldBePrimary,
+        display_order: img.display_order,
+        alt_text: img.alt_text,
+      };
+    })
   );
 
   if (insertError) {
@@ -214,7 +233,7 @@ async function fetchImagesForProduct(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Single product mode
     if (body.productId && !body.all) {

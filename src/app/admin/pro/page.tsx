@@ -720,6 +720,24 @@ export default function ProCoachPage() {
     setCurrentSessionId(null);
   };
 
+  const handleUndoLast = useCallback(async () => {
+    // Need at least one user + one assistant message to undo
+    if (messages.length < 2) return;
+    if (messages[messages.length - 1].role !== "assistant") return;
+
+    const trimmed = messages.slice(0, -2);
+    setMessages(trimmed);
+
+    // Persist trimmed history to DB immediately
+    if (currentSessionId) {
+      await supabase
+        .from("pro_sessions")
+        .update({ messages: trimmed, updated_at: new Date().toISOString() })
+        .eq("id", currentSessionId);
+    }
+    toast.success("Último intercambio deshecho");
+  }, [messages, currentSessionId, supabase]);
+
   // Resume a session from the historial tab
   const handleResumeSession = (s: AllSession) => {
     // Find the product in loaded products list
@@ -925,6 +943,19 @@ export default function ProCoachPage() {
                   <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
                   <span className="text-sm text-zinc-400">Analizando...</span>
                 </div>
+              </div>
+            )}
+            {/* Undo last exchange — only when idle and last msg is from assistant */}
+            {!loading && messages.length >= 2 && messages[messages.length - 1].role === "assistant" && (
+              <div className="flex justify-center">
+                <button
+                  onClick={handleUndoLast}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 transition-colors py-1 px-3 rounded-full hover:bg-zinc-100"
+                  title="Deshacer el último intercambio y volver al paso anterior"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Deshacer última respuesta
+                </button>
               </div>
             )}
             <div ref={messagesEndRef} />

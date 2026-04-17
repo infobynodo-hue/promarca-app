@@ -1,7 +1,7 @@
 export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const SUPPLIER_BASE = "https://catalogospromocionales.com";
 const FETCH_HEADERS = {
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
       maxPages?: number;
     };
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const categoryIds = body.categoryIds ?? DEFAULT_CATEGORY_IDS;
     const maxPages = body.maxPages ?? 999;
 

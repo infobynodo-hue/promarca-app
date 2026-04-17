@@ -164,7 +164,21 @@ export function ProductForm({ productId }: ProductFormProps) {
     const path = `${pid}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("products").upload(path, file, { upsert: false });
     if (uploadError) { toast.error("Error al subir imagen: " + uploadError.message); return null; }
-    const isPrimary = currentCount === 0;
+
+    // Check DB directly — don't trust local state for isPrimary decision
+    const { data: existingPrimary } = await supabase
+      .from("product_images")
+      .select("id")
+      .eq("product_id", pid)
+      .eq("is_primary", true)
+      .maybeSingle();
+    const isPrimary = !existingPrimary;
+
+    // If this will be primary, clear any stale primaries first (safety guard)
+    if (isPrimary) {
+      await supabase.from("product_images").update({ is_primary: false }).eq("product_id", pid);
+    }
+
     const { data: inserted, error: dbError } = await supabase.from("product_images")
       .insert({ product_id: pid, storage_path: path, is_primary: isPrimary, display_order: currentCount, alt_text: null })
       .select().single();

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST() {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     // Get all products without description that have a match in cache
     const { data: products, error: prodError } = await supabase

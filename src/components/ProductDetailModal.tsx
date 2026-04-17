@@ -286,22 +286,14 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
                     <Pencil className="h-4 w-4" /> Editar producto
                   </a>
                 ) : (
-                  <>
-                    <a
-                      href="/#contacto"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white hover:bg-orange-600 transition-colors"
-                    >
-                      Personalizar con mi marca
-                    </a>
-                    <a
-                      href={`https://wa.me/573025212938?text=Hola!%20Me%20interesa%20el%20producto%20${product.reference}%20${encodeURIComponent(product.name)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-                    >
-                      <ExternalLink className="h-4 w-4" /> Consultar por WhatsApp
-                    </a>
-                  </>
+                  <a
+                    href={`https://wa.me/573025212938?text=Hola!%20Me%20interesa%20el%20producto%20${product.reference}%20${encodeURIComponent(product.name)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white hover:bg-orange-600 transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" /> Consultar por WhatsApp
+                  </a>
                 )}
               </div>
             </>

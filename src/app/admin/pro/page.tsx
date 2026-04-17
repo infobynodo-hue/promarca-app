@@ -7,9 +7,16 @@ import { Button } from "@/components/ui/button";
 import {
   Send, Loader2, RotateCcw, ChevronDown, ChevronUp,
   Images, ExternalLink, X, AlertCircle, RefreshCw, Zap,
-  History, ArrowRight, Clock, Trash2,
+  History, ArrowRight, Clock, Trash2, MessageSquare, CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const TEMPLATE_LABEL: Record<string, string> = {
+  hero: "⚡ Hero",
+  "problema-solucion": "🎯 Problema→Solución",
+  "prueba-social": "⭐ Prueba Social",
+  hispano: "🇨🇴 Hispano",
+};
 
 interface Product {
   id: string;
@@ -414,12 +421,185 @@ function SessionHistoryPanel({
   );
 }
 
+// ─── All Sessions Panel (Historial tab) ──────────────────────────────────────
+
+interface AllSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  extracted_copy: ExtractedCopy | null;
+  created_at: string;
+  updated_at: string;
+  product: {
+    id: string;
+    name: string;
+    reference: string;
+    imageUrl: string | null;
+  } | null;
+}
+
+function AllSessionsPanel({
+  supabase,
+  onResume,
+}: {
+  supabase: ReturnType<typeof createClient>;
+  onResume: (session: AllSession) => void;
+}) {
+  const [sessions, setSessions] = useState<AllSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    supabase
+      .from("pro_sessions")
+      .select(`id, title, messages, extracted_copy, created_at, updated_at, product:products(id, name, reference, product_images(storage_path, is_primary, display_order))`)
+      .order("updated_at", { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        const mapped: AllSession[] = (data ?? []).map((s: any) => {
+          const p = Array.isArray(s.product) ? s.product[0] : s.product;
+          const imgs: any[] = p?.product_images ?? [];
+          const sorted = [...imgs].sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
+          const primary = sorted.find((i: any) => i.is_primary) ?? sorted[0];
+          const imageUrl = primary?.storage_path
+            ? supabase.storage.from("products").getPublicUrl(primary.storage_path).data.publicUrl
+            : null;
+          return {
+            id: s.id, title: s.title, messages: s.messages ?? [], extracted_copy: s.extracted_copy,
+            created_at: s.created_at, updated_at: s.updated_at,
+            product: p ? { id: p.id, name: p.name, reference: p.reference, imageUrl } : null,
+          };
+        });
+        setSessions(mapped);
+        setLoading(false);
+      });
+  }, [supabase]);
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("pro_sessions").delete().eq("id", id);
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  // Group by product
+  const grouped = new Map<string, { product: AllSession["product"]; sessions: AllSession[] }>();
+  for (const s of sessions) {
+    const key = s.product?.id ?? "__none__";
+    if (!grouped.has(key)) grouped.set(key, { product: s.product, sessions: [] });
+    grouped.get(key)!.sessions.push(s);
+  }
+  const groups = [...grouped.values()];
+  const totalSessions = sessions.length;
+  const withCopy = sessions.filter((s) => s.extracted_copy).length;
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+    </div>
+  );
+
+  if (groups.length === 0) return (
+    <div className="flex flex-col items-center justify-center py-20 space-y-3 text-center">
+      <div className="w-14 h-14 rounded-full bg-violet-100 flex items-center justify-center">
+        <History className="h-7 w-7 text-violet-400" />
+      </div>
+      <p className="font-medium text-zinc-600">No hay sesiones guardadas aún</p>
+      <p className="text-sm text-zinc-400">Las conversaciones con Pro se guardan automáticamente</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 pb-6">
+      {/* Stats */}
+      <div className="flex items-center gap-6 text-sm text-zinc-500 px-1">
+        <div><span className="text-xl font-bold text-zinc-800 mr-1">{totalSessions}</span>sesiones</div>
+        <div><span className="text-xl font-bold text-violet-700 mr-1">{withCopy}</span>con copy</div>
+        <div><span className="text-xl font-bold text-orange-600 mr-1">{groups.length}</span>productos</div>
+      </div>
+
+      {/* Groups */}
+      {groups.map((group) => (
+        <div key={group.product?.id ?? "__none__"} className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+          {/* Product header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 bg-zinc-50">
+            {group.product?.imageUrl ? (
+              <img src={group.product.imageUrl} alt={group.product.name} className="h-9 w-9 rounded-lg object-cover flex-shrink-0 border border-zinc-200" />
+            ) : (
+              <div className="h-9 w-9 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0 text-zinc-400 text-xs">📦</div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-zinc-800 truncate">{group.product?.name ?? "Sin producto"}</p>
+              {group.product?.reference && <p className="text-[11px] text-zinc-400 font-mono">{group.product.reference}</p>}
+            </div>
+            <span className="text-xs text-zinc-400 flex-shrink-0">{group.sessions.length} sesión{group.sessions.length !== 1 ? "es" : ""}</span>
+          </div>
+
+          {/* Sessions list */}
+          <div className="divide-y divide-zinc-50">
+            {group.sessions.map((s) => {
+              const extracted = s.extracted_copy as any;
+              const msgCount = s.messages.length;
+              return (
+                <div key={s.id} className="flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors group">
+                  <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${extracted ? "bg-green-100" : "bg-violet-100"}`}>
+                    {extracted
+                      ? <CheckCircle className="h-3 w-3 text-green-600" />
+                      : <MessageSquare className="h-3 w-3 text-violet-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-medium text-zinc-800 truncate">{s.title}</p>
+                    {extracted && (
+                      <div className="flex flex-wrap gap-1">
+                        {extracted.headline && (
+                          <span className="text-[10px] bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full truncate max-w-[180px]">
+                            &ldquo;{extracted.headline}&rdquo;
+                          </span>
+                        )}
+                        {extracted.template && (
+                          <span className="text-[10px] bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                            {TEMPLATE_LABEL[extracted.template] ?? extracted.template}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-zinc-400 flex items-center gap-1.5">
+                      <Clock className="h-2.5 w-2.5" />{fmtDate(s.updated_at)}
+                      <span>·</span><MessageSquare className="h-2.5 w-2.5" />{msgCount} mensaje{msgCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => onResume(s)}
+                      className="text-[11px] bg-violet-600 text-white px-2.5 py-1 rounded-lg font-medium hover:bg-violet-700 transition-colors"
+                    >
+                      Retomar →
+                    </button>
+                    {extracted && (
+                      <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full font-medium">copy ✓</span>
+                    )}
+                    <button onClick={() => handleDelete(s.id)} className="p-1 rounded hover:bg-red-50 transition-colors">
+                      <Trash2 className="h-3 w-3 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ProCoachPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  const [view, setView] = useState<"chat" | "historial">("chat");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
@@ -540,6 +720,18 @@ export default function ProCoachPage() {
     setCurrentSessionId(null);
   };
 
+  // Resume a session from the historial tab
+  const handleResumeSession = (s: AllSession) => {
+    // Find the product in loaded products list
+    const prod = products.find((p) => p.id === s.product?.id) ?? (s.product
+      ? { id: s.product.id, name: s.product.name, reference: s.product.reference, price: 0, primaryImageUrl: s.product.imageUrl }
+      : null);
+    if (prod) setSelectedProduct(prod as Product);
+    setMessages(s.messages);
+    setCurrentSessionId(s.id);
+    setView("chat");
+  };
+
   // Extract structured copy and send to Ventas B2C
   const handleCreateCampaign = async () => {
     if (!selectedProduct || messages.length === 0) return;
@@ -592,20 +784,32 @@ export default function ProCoachPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between py-4 px-1 flex-shrink-0">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">P</div>
-            <h1 className="text-xl font-bold tracking-tight">Pro</h1>
-            <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">Sales Coach</span>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">P</div>
+          <h1 className="text-xl font-bold tracking-tight">Pro</h1>
+          <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">Sales Coach</span>
+          {/* Tabs */}
+          <div className="flex rounded-lg border border-zinc-200 overflow-hidden ml-2">
+            <button
+              onClick={() => setView("chat")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${view === "chat" ? "bg-violet-600 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50"}`}
+            >
+              <MessageSquare className="h-3 w-3" /> Chat
+            </button>
+            <button
+              onClick={() => setView("historial")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 border-l border-zinc-200 ${view === "historial" ? "bg-violet-600 text-white" : "bg-white text-zinc-500 hover:bg-zinc-50"}`}
+            >
+              <History className="h-3 w-3" /> Historial
+            </button>
           </div>
-          <p className="text-sm text-zinc-500 mt-0.5 ml-10">Estrategia de ventas · El historial se guarda automáticamente</p>
         </div>
-        {selectedProduct && (
+        {view === "chat" && selectedProduct && (
           <div className="flex items-center gap-2">
             {hasMessages && (
               <Button size="sm" variant="outline" onClick={() => setShowHistory(!showHistory)} className="gap-1.5">
                 <History className="h-3.5 w-3.5" />
-                Historial
+                Sesiones
                 {sessions.length > 0 && <span className="text-[10px] bg-violet-100 text-violet-700 px-1 rounded-full">{sessions.length}</span>}
               </Button>
             )}
@@ -616,8 +820,15 @@ export default function ProCoachPage() {
         )}
       </div>
 
-      {/* Product picker */}
-      {!selectedProduct ? (
+      {/* Historial tab */}
+      {view === "historial" && (
+        <div className="flex-1 overflow-y-auto">
+          <AllSessionsPanel supabase={supabase} onResume={handleResumeSession} />
+        </div>
+      )}
+
+      {/* Chat tab — product picker */}
+      {view === "chat" && !selectedProduct && (
         <div className="flex-1 overflow-y-auto space-y-4 pb-4">
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 space-y-4">
             <div>
@@ -647,7 +858,10 @@ export default function ProCoachPage() {
             </button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* Chat tab — conversation */}
+      {view === "chat" && selectedProduct && (
         <>
           {/* History panel */}
           {showHistory && (

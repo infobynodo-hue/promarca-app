@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { CatalogGrid } from "./catalog-grid";
+import { CatalogHero } from "@/components/public/CatalogHero";
 
 interface Props {
   params: Promise<{ categoria: string }>;
@@ -41,39 +41,19 @@ export default async function CatalogPage({ params }: Props) {
 
   return (
     <>
-      {/* Category hero */}
-      <section className="cat-hero">
-        <nav className="breadcrumb" aria-label="Breadcrumb">
-          <Link href="/">Inicio</Link>
-          <span className="sep">/</span>
-          <Link href="/#catalogo">Catálogo</Link>
-          <span className="sep">/</span>
-          <span>{category.name}</span>
-        </nav>
-        <p className="cat-hero-eyebrow">Catálogo 2026</p>
-        <h1 className="cat-hero-title">{category.name}</h1>
-        {category.description && (
-          <p className="cat-hero-sub">{category.description}</p>
-        )}
-        <div className="cat-hero-stats">
-          <div className="cat-stat">
-            <div className="cat-stat-num">{prods.length}</div>
-            <div className="cat-stat-label">Productos</div>
-          </div>
-          {subs.length > 0 && (
-            <div className="cat-stat">
-              <div className="cat-stat-num">{subs.length}</div>
-              <div className="cat-stat-label">Tipos</div>
-            </div>
-          )}
-          <div className="cat-stat">
-            <div className="cat-stat-num">
-              {new Set(prods.flatMap((p: any) => p.product_colors.map((c: any) => c.hex_color))).size}
-            </div>
-            <div className="cat-stat-label">Colores</div>
-          </div>
-        </div>
-      </section>
+      {/* Category hero — Lamp effect */}
+      <CatalogHero
+        categoryName={category.name}
+        description={category.description}
+        stats={[
+          { num: prods.length, label: "Productos" },
+          ...(subs.length > 0 ? [{ num: subs.length, label: "Tipos" }] : []),
+          {
+            num: new Set(prods.flatMap((p: any) => p.product_colors.map((c: any) => c.hex_color))).size,
+            label: "Colores",
+          },
+        ]}
+      />
 
       {/* Dynamic grid with filtering */}
       <CatalogGrid

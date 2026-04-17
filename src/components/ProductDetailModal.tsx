@@ -116,7 +116,7 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6"
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6"
       onClick={onClose}
     >
       <div

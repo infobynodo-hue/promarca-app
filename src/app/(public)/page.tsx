@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { HeroCarousel } from "./components/hero-carousel";
+import { LiquidButton, LiquidGlassFilter } from "@/components/ui/liquid-glass-button";
 
 const clients = [
   { src: "/img/clientes/ecoimagen.png", alt: "Ecoimagen Salud" },
@@ -84,6 +85,8 @@ export default async function HomePage() {
             <h2 className="section-title">Explora todo lo que<br />puedes personalizar</h2>
             <p className="section-sub">Desde pequeños detalles hasta grandes campañas, tenemos el producto perfecto para tu marca.</p>
           </div>
+          {/* SVG distortion filter — rendered once, shared by all LiquidButtons */}
+          <LiquidGlassFilter id="liquid-glass-filter" />
           <div className="cat-grid">
             {cats.map((cat) => (
               <Link
@@ -92,8 +95,20 @@ export default async function HomePage() {
                 className="cat-card shine"
                 style={{ backgroundImage: `url('/img/categorias/${cat.slug}.webp')` }}
               >
-                <div className="cat-name">{cat.name}</div>
-                <span className="cat-cta">Ver todos →</span>
+                <LiquidButton
+                  variant="orange"
+                  size="sm"
+                  style={{ marginBottom: "6px", alignSelf: "flex-start" }}
+                >
+                  {cat.name}
+                </LiquidButton>
+                <LiquidButton
+                  variant="glass"
+                  size="sm"
+                  style={{ alignSelf: "flex-start", fontSize: "11px" }}
+                >
+                  Ver todos →
+                </LiquidButton>
               </Link>
             ))}
           </div>

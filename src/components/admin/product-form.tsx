@@ -329,17 +329,13 @@ export function ProductForm({ productId }: ProductFormProps) {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!form.name || !form.reference) { toast.error("Completa nombre y referencia"); return; }
-    if (!form.has_variants && !form.price) { toast.error("Completa el precio o activa variantes"); return; }
+    if (!form.name || !form.reference || !form.price) { toast.error("Completa nombre, referencia y precio"); return; }
     if (form.has_variants && variants.length === 0) { toast.error("Agrega al menos una variante de precio"); return; }
     if (form.has_variants && variants.some((v) => !v.label || !v.price)) { toast.error("Todas las variantes deben tener nombre y precio"); return; }
     if (refStatus === "duplicate") { toast.error("Esa referencia ya existe — edita el producto existente"); return; }
 
     setSaving(true);
-    // If using variants, price = minimum variant price
-    const effectivePrice = form.has_variants
-      ? Math.min(...variants.map((v) => parseInt(v.price) || 0))
-      : parseInt(form.price);
+    const effectivePrice = parseInt(form.price);
 
     const payload = {
       reference: form.reference.trim().toUpperCase(),
@@ -499,9 +495,9 @@ export function ProductForm({ productId }: ProductFormProps) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <Label>Precio publicado (COP) {!form.has_variants && "*"}</Label>
+                    <Label>Precio publicado (COP) *</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Variantes</span>
+                      <span className="text-xs text-zinc-400">Tiene variantes</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -519,12 +515,10 @@ export function ProductForm({ productId }: ProductFormProps) {
                     type="number"
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    placeholder={form.has_variants ? "Se calcula del mínimo" : "31311"}
-                    disabled={form.has_variants}
-                    className={form.has_variants ? "opacity-40 cursor-not-allowed" : ""}
+                    placeholder="31311"
                   />
                   {form.has_variants && (
-                    <p className="mt-1 text-xs text-orange-600">El precio base se toma del mínimo de variantes</p>
+                    <p className="mt-1 text-xs text-zinc-400">Precio principal del producto. Las variantes agregan opciones adicionales.</p>
                   )}
                 </div>
               </div>

@@ -105,7 +105,7 @@ export function PublicFooter() {
 
       {/* ── Glass card ── */}
       <div
-        className="relative mx-auto max-w-6xl rounded-2xl px-8 py-10 md:px-12"
+        className="relative mx-4 md:mx-auto max-w-6xl rounded-2xl px-6 py-10 md:px-12"
         style={{
           backdropFilter: "blur(16px) saturate(160%)",
           WebkitBackdropFilter: "blur(16px) saturate(160%)",
@@ -116,7 +116,7 @@ export function PublicFooter() {
             "0 4px 32px rgba(255,107,26,0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
         }}
       >
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
 
           {/* ── Brand column ── */}
           <div className="flex flex-col items-center lg:items-start">
@@ -184,7 +184,7 @@ export function PublicFooter() {
           </div>
 
           {/* ── Link columns ── */}
-          <div className="grid grid-cols-2 gap-8 lg:col-span-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-6 md:col-span-2 md:grid-cols-4">
             {[
               { title: "Catálogo",  links: catalogLinks },
               { title: "Servicios", links: serviceLinks },

@@ -230,12 +230,25 @@ export default function NuevaCotizacionPage() {
 
     setSaving(true);
 
-    // Sequential numbering: count existing quotes + 1
-    const { count: quoteCount } = await supabase
+    // Find first available number: fetch all existing quote numbers this year,
+    // then pick the lowest gap so deleted numbers are reused.
+    const year = new Date().getFullYear();
+    const { data: existingQuotes } = await supabase
       .from("quotes")
-      .select("id", { count: "exact", head: true });
-    const num = String((quoteCount ?? 0) + 1).padStart(4, "0");
-    const quoteNumber = `COT-${new Date().getFullYear()}-${num}`;
+      .select("quote_number")
+      .like("quote_number", `COT-${year}-%`);
+
+    const usedNums = new Set(
+      (existingQuotes ?? []).map((q) => {
+        const parts = q.quote_number.split("-");
+        return parseInt(parts[parts.length - 1], 10);
+      }).filter((n) => !isNaN(n))
+    );
+
+    let nextNum = 1;
+    while (usedNums.has(nextNum)) nextNum++;
+
+    const quoteNumber = `COT-${year}-${String(nextNum).padStart(4, "0")}`;
 
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + validDays);
@@ -257,7 +270,11 @@ export default function NuevaCotizacionPage() {
       .single();
 
     if (error || !quote) {
-      toast.error("Error al crear: " + (error?.message ?? ""));
+      if (error?.code === "23505") {
+        toast.error("Número de cotización duplicado — intenta guardar de nuevo.");
+      } else {
+        toast.error("Error al crear: " + (error?.message ?? ""));
+      }
       setSaving(false);
       return;
     }

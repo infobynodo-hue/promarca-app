@@ -247,16 +247,25 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 28px;
 }
 
-/* ─── PRODUCT GRID ─── */
+/* ─── PRODUCT GRID (legacy) ─── */
 .products-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2px;
 }
-
 @media (max-width: 1100px) { .products-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 740px)  { .products-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px)  { .products-grid { grid-template-columns: 1fr; } }
+
+/* ─── PRODUCT GRID (new card style) ─── */
+.products-grid-new {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+@media (max-width: 1200px) { .products-grid-new { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 740px)  { .products-grid-new { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+@media (max-width: 480px)  { .products-grid-new { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
 
 /* ─── PRODUCT CARD ─── */
 .product-card {

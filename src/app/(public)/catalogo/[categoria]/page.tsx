@@ -79,12 +79,16 @@ export default async function CatalogPage({ params }: Props) {
       <CatalogGrid
         products={prods.map((p: any) => {
           const imgs: any[] = p.product_images ?? [];
-          const sorted = [...imgs].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-          const primary = sorted.find((i) => i.is_primary) ?? sorted[0];
-          // Use Supabase SDK to build the URL — avoids path format issues
-          const primaryImageUrl = primary?.storage_path
-            ? supabase.storage.from("products").getPublicUrl(primary.storage_path).data.publicUrl
-            : null;
+          // Sort: primary first, then by display_order
+          const sorted = [...imgs].sort((a, b) => {
+            if (a.is_primary && !b.is_primary) return -1;
+            if (!a.is_primary && b.is_primary) return 1;
+            return (a.display_order ?? 0) - (b.display_order ?? 0);
+          });
+          // Build all public URLs for the carousel
+          const imageUrls = sorted
+            .filter((i) => i.storage_path)
+            .map((i) => supabase.storage.from("products").getPublicUrl(i.storage_path).data.publicUrl);
           return {
             id: p.id,
             reference: p.reference,
@@ -94,7 +98,7 @@ export default async function CatalogPage({ params }: Props) {
             has_variants: p.has_variants ?? false,
             subcategory_id: p.subcategory_id,
             product_colors: p.product_colors ?? [],
-            primaryImageUrl,
+            imageUrls,
           };
         })}
         subcategories={subs}

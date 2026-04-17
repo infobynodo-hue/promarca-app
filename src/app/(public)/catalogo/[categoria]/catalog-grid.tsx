@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
+import { PublicProductCard } from "@/components/PublicProductCard";
 
 interface Color {
   id: string;
@@ -18,7 +19,7 @@ interface Product {
   has_variants: boolean;
   subcategory_id: string | null;
   product_colors: Color[];
-  primaryImageUrl?: string | null;
+  imageUrls: string[]; // all images, primary first
 }
 
 interface Subcategory {
@@ -33,34 +34,22 @@ interface Props {
   categoryIcon: string;
 }
 
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(price);
-
-export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
+export function CatalogGrid({ products, subcategories }: Props) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [sort, setSort] = useState("default");
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = products;
-
-    if (activeFilter !== "all") {
-      list = list.filter((p) => p.subcategory_id === activeFilter);
-    }
-
+    if (activeFilter !== "all") list = list.filter((p) => p.subcategory_id === activeFilter);
     if (sort === "asc") list = [...list].sort((a, b) => a.price - b.price);
     if (sort === "desc") list = [...list].sort((a, b) => b.price - a.price);
-
     return list;
   }, [products, activeFilter, sort]);
 
   return (
     <>
-      {/* Filter bar */}
+      {/* ── Filter bar ── */}
       <div className="filter-bar" id="filtros">
         <button
           className={`filter-btn${activeFilter === "all" ? " active" : ""}`}
@@ -89,74 +78,35 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
         </select>
       </div>
 
-      {/* Products grid */}
+      {/* ── Products grid ── */}
       <section className="products-section">
         <p className="section-count">{filtered.length} productos</p>
-        <div className="products-grid">
+
+        <div className="products-grid-new">
           {filtered.map((p) => (
-            <article
+            <PublicProductCard
               key={p.id}
-              className="product-card"
-              style={{ cursor: "pointer" }}
+              id={p.id}
+              reference={p.reference}
+              name={p.name}
+              price={p.price}
+              price_label={p.price_label}
+              has_variants={p.has_variants}
+              product_colors={p.product_colors}
+              images={p.imageUrls}
               onClick={() => setSelectedProductId(p.id)}
-            >
-              <div className="product-thumb">
-                {p.primaryImageUrl ? (
-                  <img
-                    src={p.primaryImageUrl}
-                    alt={p.name}
-                    style={{ width: "100%", height: "100%", objectFit: "contain", padding: "8px" }}
-                  />
-                ) : (
-                  <div className="product-thumb-placeholder">{categoryIcon}</div>
-                )}
-              </div>
-              <div className="product-info">
-                {p.product_colors.length > 0 && (
-                  <div className="color-dots">
-                    {p.product_colors.slice(0, 5).map((c) => (
-                      <span
-                        key={c.id}
-                        className="color-dot"
-                        style={{ background: c.hex_color }}
-                        title={c.name}
-                      />
-                    ))}
-                    {p.product_colors.length > 5 && (
-                      <span className="color-more">+{p.product_colors.length - 5}</span>
-                    )}
-                  </div>
-                )}
-                <p className="product-ref">{p.reference}</p>
-                <span className="product-name-glass">{p.name}</span>
-                <div className="product-price-block">
-                  {!p.has_variants && <span className="price-badge">{p.price_label}</span>}
-                  <p className="product-price">
-                    {p.has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
-                  </p>
-                </div>
-                <button
-                  className="btn-personalizar"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProductId(p.id);
-                  }}
-                >
-                  Ver detalles
-                </button>
-              </div>
-            </article>
+            />
           ))}
 
           {filtered.length === 0 && (
-            <p style={{ color: "var(--text-sec)", padding: "48px 0", gridColumn: "1/-1" }}>
+            <p className="col-span-full py-12 text-center text-sm text-zinc-400">
               No hay productos en esta subcategoría.
             </p>
           )}
         </div>
       </section>
 
-      {/* Product detail modal */}
+      {/* ── Modal ── */}
       <ProductDetailModal
         productId={selectedProductId}
         onClose={() => setSelectedProductId(null)}

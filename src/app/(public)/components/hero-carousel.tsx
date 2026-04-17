@@ -25,17 +25,15 @@ const INTERVAL = 5000;
 
 export function HeroCarousel() {
   const [current, setCurrent] = useState(0);
-  const [paused, setPaused] = useState(false);
 
   const next = useCallback(() => {
     setCurrent((c) => (c + 1) % slides.length);
   }, []);
 
   useEffect(() => {
-    if (paused) return;
     const timer = setInterval(next, INTERVAL);
     return () => clearInterval(timer);
-  }, [next, paused]);
+  }, [next]);
 
   return (
     <>
@@ -48,8 +46,6 @@ export function HeroCarousel() {
           zIndex: 0,
           overflow: "hidden",
         }}
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
       >
         {slides.map((s, i) => (
           <div

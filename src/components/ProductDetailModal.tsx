@@ -461,11 +461,18 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
               <div className="flex-1" />
 
               {/* CTA */}
-              <div className="pt-2">
+              <div
+                style={{
+                  paddingTop: "20px",
+                  paddingBottom: "4px",
+                  borderTop: "1px solid #f4f4f5",
+                  marginTop: "8px",
+                }}
+              >
                 {isAdmin ? (
                   <a
                     href={`/admin/catalogo/${product.id}`}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
                   >
                     <Pencil className="h-4 w-4" />
                     Editar producto
@@ -475,11 +482,21 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
                     href={`https://wa.me/573025212938?text=Hola!%20Me%20interesa%20el%20producto%20${product.reference}%20${encodeURIComponent(product.name)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3.5 text-sm font-bold text-white transition-all active:scale-[0.98]"
+                    className="flex w-full items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
                     style={{
-                      background: "linear-gradient(135deg, #FF6B1A 0%, #e85a0a 100%)",
+                      borderRadius: 9999,
+                      padding: "14px 24px",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      color: "#ffffff",
+                      textDecoration: "none",
+                      background: "rgba(255,107,26,0.82)",
+                      backdropFilter: "blur(14px) saturate(200%)",
+                      WebkitBackdropFilter: "blur(14px) saturate(200%)",
+                      border: "1px solid rgba(255,150,70,0.65)",
                       boxShadow:
-                        "0 4px 16px rgba(255,107,26,0.35), 0 1px 3px rgba(255,107,26,0.20)",
+                        "0 4px 20px rgba(255,107,26,0.35), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -1px 0 rgba(0,0,0,0.10)",
+                      textShadow: "0 1px 3px rgba(0,0,0,0.25)",
                     }}
                   >
                     <WhatsAppIcon size={18} />

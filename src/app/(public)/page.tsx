@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { HeroCarousel } from "./components/hero-carousel";
-import { LiquidButton, LiquidGlassFilter } from "@/components/ui/liquid-glass-button";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
 
 const clients = [
   { src: "/img/clientes/ecoimagen.png", alt: "Ecoimagen Salud" },
@@ -85,8 +85,6 @@ export default async function HomePage() {
             <h2 className="section-title">Explora todo lo que<br />puedes personalizar</h2>
             <p className="section-sub">Desde pequeños detalles hasta grandes campañas, tenemos el producto perfecto para tu marca.</p>
           </div>
-          {/* SVG distortion filter — rendered once, shared by all LiquidButtons */}
-          <LiquidGlassFilter id="liquid-glass-filter" />
           <div className="cat-grid">
             {cats.map((cat) => (
               <Link

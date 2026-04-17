@@ -75,7 +75,6 @@ const variantStyles: Record<string, React.CSSProperties> = {
     boxShadow:
       "0 2px 16px rgba(255,107,26,0.30), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.12)",
     color: "#ffffff",
-    filter: "url(#liquid-glass-filter)",
   },
   orange: {
     background: "rgba(255,107,26,0.70)",
@@ -85,7 +84,6 @@ const variantStyles: Record<string, React.CSSProperties> = {
     boxShadow:
       "0 2px 16px rgba(255,107,26,0.40), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.12)",
     color: "#ffffff",
-    filter: "url(#liquid-glass-filter)",
   },
   metal: {
     background:
@@ -96,7 +94,6 @@ const variantStyles: Record<string, React.CSSProperties> = {
     boxShadow:
       "0 1px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.40)",
     color: "#ffffff",
-    filter: "url(#liquid-glass-filter)",
   },
 };
 
@@ -105,7 +102,6 @@ export interface LiquidButtonProps
   extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof liquidbuttonVariants> {
   asChild?: boolean;
-  filterRef?: string;
 }
 
 export const LiquidButton = React.forwardRef<HTMLSpanElement, LiquidButtonProps>(
@@ -114,7 +110,6 @@ export const LiquidButton = React.forwardRef<HTMLSpanElement, LiquidButtonProps>
       className,
       variant = "glass",
       size = "md",
-      filterRef = "liquid-glass-filter",
       style,
       children,
       ...props
@@ -129,7 +124,6 @@ export const LiquidButton = React.forwardRef<HTMLSpanElement, LiquidButtonProps>
         className={cn(liquidbuttonVariants({ variant, size, className }))}
         style={{
           ...vStyle,
-          filter: `url(#${filterRef})`,
           ...style,
         }}
         {...props}
@@ -146,8 +140,17 @@ export const LiquidButton = React.forwardRef<HTMLSpanElement, LiquidButtonProps>
             pointerEvents: "none",
           }}
         />
-        {/* Content */}
-        <span style={{ position: "relative", zIndex: 1 }}>{children}</span>
+        {/* Content — text-shadow for crisp legibility */}
+        <span
+          style={{
+            position: "relative",
+            zIndex: 1,
+            textShadow: "0 1px 3px rgba(0,0,0,0.35)",
+            WebkitFontSmoothing: "antialiased",
+          }}
+        >
+          {children}
+        </span>
       </span>
     );
   }

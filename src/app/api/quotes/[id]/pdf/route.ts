@@ -23,8 +23,20 @@ export async function GET(
   if (!quoteRes.data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const quote  = quoteRes.data;
-  const items  = itemsRes.data ?? [];
+  const allItems = itemsRes.data ?? [];
   const client = quote.client;
+
+  // When the quote is a confirmed order, use only confirmed items with confirmed quantities
+  const isConfirmedOrder = quote.status === "accepted" && allItems.some((i: any) => i.is_confirmed !== null);
+  const items = isConfirmedOrder
+    ? allItems
+        .filter((i: any) => i.is_confirmed === true)
+        .map((i: any) => ({
+          ...i,
+          quantity: i.confirmed_quantity ?? i.quantity,
+          line_total: (i.confirmed_quantity ?? i.quantity) * ((i.unit_price ?? 0) + (i.marking_price ?? 0)),
+        }))
+    : allItems;
 
   // ── Settings with defaults ───────────────────────────────────────────────
   const s: Record<string, string> = {
@@ -77,14 +89,18 @@ export async function GET(
   const formatPrice = (n: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-  const discountAmount    = Math.round(quote.subtotal * (quote.discount_percent / 100));
-  const baseAfterDiscount = quote.subtotal - discountAmount;
-  const ivaAmount         = Math.round(baseAfterDiscount * (quote.iva_percent / 100));
+  // Recalculate totals from the actual items shown in the PDF
+  const pdfSubtotal = items.reduce((sum: number, i: any) => sum + (i.line_total ?? 0), 0);
+  const discountAmount    = Math.round(pdfSubtotal * ((quote.discount_percent ?? 0) / 100));
+  const baseAfterDiscount = pdfSubtotal - discountAmount;
+  const ivaAmount         = Math.round(baseAfterDiscount * ((quote.iva_percent ?? 0) / 100));
+  const pdfTotal          = baseAfterDiscount + ivaAmount;
 
   const html = buildQuoteHTML({
-    quote, items, client, s, primary,
+    quote: { ...quote, subtotal: pdfSubtotal, total: pdfTotal },
+    items, client, s, primary,
     formatPrice, discountAmount, ivaAmount,
-    autoPrint, isPreview, imageMap,
+    autoPrint, isPreview, imageMap, isConfirmedOrder,
   });
 
   return new NextResponse(html, {
@@ -93,7 +109,7 @@ export async function GET(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discountAmount, ivaAmount, autoPrint, isPreview, imageMap }: any) {
+function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discountAmount, ivaAmount, autoPrint, isPreview, imageMap, isConfirmedOrder }: any) {
   const itemCount: number = items.length;
 
   const clientName = client?.company || client?.name || "Cliente";
@@ -494,7 +510,7 @@ ${isPreview ? "" : `<!-- Print toolbar -->
 
   <!-- ── CLIENT NAME ── -->
   <div class="client-hero">
-    <div class="client-hero-label">Propuesta comercial</div>
+    <div class="client-hero-label">${isConfirmedOrder ? "Pedido confirmado" : "Propuesta comercial"}</div>
     <div class="client-hero-name">${clientName}</div>
     <div class="quote-meta">
       <span><strong>${quote.quote_number}</strong></span>

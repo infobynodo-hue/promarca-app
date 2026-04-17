@@ -117,6 +117,9 @@ export interface QuoteItem {
   line_total: number;
   notes: string | null;
   display_order: number;
+  // Order confirmation
+  is_confirmed: boolean | null;
+  confirmed_quantity: number | null;
   // Joined
   product?: Product;
 }

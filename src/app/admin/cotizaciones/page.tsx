@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Quote } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -18,12 +17,12 @@ import { Plus, FileDown, Copy, Trash2, LayoutTemplate } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Borrador", variant: "secondary" },
-  sent: { label: "Enviada", variant: "default" },
-  accepted: { label: "Aceptada", variant: "default" },
-  rejected: { label: "Rechazada", variant: "destructive" },
-  expired: { label: "Expirada", variant: "outline" },
+const statusLabels: Record<string, { label: string; color: string }> = {
+  draft:    { label: "Borrador",   color: "bg-zinc-100 text-zinc-500" },
+  sent:     { label: "Enviada",    color: "bg-blue-100 text-blue-700" },
+  accepted: { label: "Aprobada ✓", color: "bg-green-100 text-green-700 font-semibold" },
+  rejected: { label: "Rechazada",  color: "bg-red-100 text-red-700" },
+  expired:  { label: "Expirada",   color: "bg-zinc-100 text-zinc-400" },
 };
 
 export default function CotizacionesPage() {
@@ -142,6 +141,7 @@ export default function CotizacionesPage() {
               )}
               {quotes.map((q) => {
                 const s = statusLabels[q.status] ?? statusLabels.draft;
+                const confirmedTotal = (q as any).confirmed_total;
                 return (
                   <TableRow key={q.id}>
                     <TableCell className="font-mono text-sm font-bold">
@@ -159,10 +159,17 @@ export default function CotizacionesPage() {
                       {new Date(q.created_at).toLocaleDateString("es-CO")}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={s.variant}>{s.label}</Badge>
+                      <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full ${s.color}`}>{s.label}</span>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {formatPrice(q.total)}
+                      {q.status === "accepted" && confirmedTotal ? (
+                        <span>
+                          <span className="font-bold text-green-700">{formatPrice(confirmedTotal)}</span>
+                          {confirmedTotal !== q.total && (
+                            <span className="ml-1.5 text-xs text-zinc-400 line-through">{formatPrice(q.total)}</span>
+                          )}
+                        </span>
+                      ) : formatPrice(q.total)}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button

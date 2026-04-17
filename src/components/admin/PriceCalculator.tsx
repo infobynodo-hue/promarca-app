@@ -20,13 +20,14 @@ const fmt = (n: number) =>
 export function PriceCalculator({ onApply, currentPrice }: Props) {
   const [open, setOpen] = useState(false);
   const [providerPrice, setProviderPrice] = useState("");
+  const [hasDiscount, setHasDiscount] = useState(true);
   const [discountPct, setDiscountPct] = useState(52);
   const [marginPct, setMarginPct] = useState(40);
   const [ivaPct] = useState(19);
   const [applied, setApplied] = useState(false);
 
   const provider = parseFloat(providerPrice.replace(/\./g, "").replace(",", ".")) || 0;
-  const cost         = provider * (1 - discountPct / 100);
+  const cost         = hasDiscount ? provider * (1 - discountPct / 100) : provider;
   const margin       = provider * (marginPct / 100);
   const subtotal     = cost + margin;
   const iva          = subtotal * (ivaPct / 100);
@@ -78,15 +79,36 @@ export function PriceCalculator({ onApply, currentPrice }: Props) {
           {/* Adjustable percentages */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-zinc-500 mb-1 block">
-                Tu descuento como distribuidor (%)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-zinc-500">
+                  Descuento distribuidor (%)
+                </label>
+                {/* Toggle descuento */}
+                <button
+                  type="button"
+                  onClick={() => setHasDiscount((v) => !v)}
+                  title={hasDiscount ? "Desactivar descuento" : "Activar descuento"}
+                  className={`relative h-5 w-9 rounded-full transition-colors focus:outline-none ${
+                    hasDiscount ? "bg-orange-500" : "bg-zinc-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                      hasDiscount ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
               <Input
                 type="number"
                 value={discountPct}
                 onChange={(e) => setDiscountPct(parseFloat(e.target.value) || 0)}
-                className="text-sm"
+                disabled={!hasDiscount}
+                className={`text-sm transition-opacity ${!hasDiscount ? "opacity-40 cursor-not-allowed" : ""}`}
               />
+              {!hasDiscount && (
+                <p className="mt-1 text-xs text-zinc-400">Sin descuento — se usa precio lista completo</p>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-zinc-500 mb-1 block">
@@ -108,12 +130,14 @@ export function PriceCalculator({ onApply, currentPrice }: Props) {
                 <span>Precio del proveedor</span>
                 <span className="font-medium text-zinc-700">{fmt(provider)}</span>
               </div>
-              <div className="flex justify-between px-4 py-2.5 text-zinc-500">
-                <span>Menos tu descuento de distribuidor ({discountPct}%)</span>
-                <span className="font-medium text-red-500">− {fmt(provider - cost)}</span>
-              </div>
+              {hasDiscount && (
+                <div className="flex justify-between px-4 py-2.5 text-zinc-500">
+                  <span>Menos tu descuento de distribuidor ({discountPct}%)</span>
+                  <span className="font-medium text-red-500">− {fmt(provider - cost)}</span>
+                </div>
+              )}
               <div className="flex justify-between px-4 py-2.5 bg-zinc-50 font-medium text-zinc-700">
-                <span>Lo que te cuesta a ti</span>
+                <span>{hasDiscount ? "Lo que te cuesta a ti" : "Costo (sin descuento)"}</span>
                 <span>{fmt(cost)}</span>
               </div>
               <div className="flex justify-between px-4 py-2.5 text-zinc-500">

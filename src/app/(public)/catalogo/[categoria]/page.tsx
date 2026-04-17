@@ -91,6 +91,7 @@ export default async function CatalogPage({ params }: Props) {
             name: p.name,
             price: p.price,
             price_label: p.price_label,
+            has_variants: p.has_variants ?? false,
             subcategory_id: p.subcategory_id,
             product_colors: p.product_colors ?? [],
             primaryImageUrl,

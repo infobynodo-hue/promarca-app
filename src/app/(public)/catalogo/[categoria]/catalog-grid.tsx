@@ -15,6 +15,7 @@ interface Product {
   name: string;
   price: number;
   price_label: string;
+  has_variants: boolean;
   subcategory_id: string | null;
   product_colors: Color[];
   primaryImageUrl?: string | null;
@@ -129,8 +130,10 @@ export function CatalogGrid({ products, subcategories, categoryIcon }: Props) {
                 <p className="product-ref">{p.reference}</p>
                 <p className="product-name">{p.name}</p>
                 <div className="product-price-block">
-                  <span className="price-badge">{p.price_label}</span>
-                  <p className="product-price">{formatPrice(p.price)}</p>
+                  {!p.has_variants && <span className="price-badge">{p.price_label}</span>}
+                  <p className="product-price">
+                    {p.has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
+                  </p>
                 </div>
                 <button
                   className="btn-personalizar"

@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { X, ChevronLeft, ChevronRight, ExternalLink, Pencil } from "lucide-react";
 
+interface ProductVariant {
+  id: string;
+  label: string;
+  price: number;
+  reference: string | null;
+  is_default: boolean;
+  display_order: number;
+}
+
 interface ProductDetail {
   id: string;
   reference: string;
@@ -11,6 +20,7 @@ interface ProductDetail {
   description: string | null;
   price: number;
   price_label: string;
+  has_variants: boolean;
   product_colors: { id: string; name: string; hex_color: string }[];
   product_images: { id: string; storage_path: string; is_primary: boolean; display_order: number }[];
 }
@@ -29,17 +39,22 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   useEffect(() => {
-    if (!productId) { setProduct(null); return; }
+    if (!productId) { setProduct(null); setVariants([]); setSelectedVariant(null); return; }
     setLoading(true);
     setImgIndex(0);
+    setVariants([]);
+    setSelectedVariant(null);
+
     supabase
       .from("products")
       .select("*, product_colors(*), product_images(*)")
       .eq("id", productId)
       .single()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (data) {
           const sorted = [...(data.product_images ?? [])].sort(
             (a: any, b: any) => a.display_order - b.display_order
@@ -47,6 +62,18 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
           const primary = sorted.findIndex((i: any) => i.is_primary);
           setProduct({ ...data, product_images: sorted });
           setImgIndex(primary >= 0 ? primary : 0);
+
+          if (data.has_variants) {
+            const { data: varData } = await supabase
+              .from("product_variants")
+              .select("*")
+              .eq("product_id", productId)
+              .order("display_order");
+            const vList = varData ?? [];
+            setVariants(vList);
+            const def = vList.find((v: ProductVariant) => v.is_default) ?? vList[0] ?? null;
+            setSelectedVariant(def);
+          }
         }
         setLoading(false);
       });
@@ -181,14 +208,42 @@ export function ProductDetailModal({ productId, onClose, isAdmin = false }: Prop
                 {product.name}
               </h2>
 
+              {/* Variants selector */}
+              {product.has_variants && variants.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Capacidad / Versión</p>
+                  <div className="flex flex-wrap gap-2">
+                    {variants.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setSelectedVariant(v)}
+                        className={`rounded-lg border-2 px-3 py-1.5 text-sm font-medium transition-all ${
+                          selectedVariant?.id === v.id
+                            ? "border-orange-500 bg-orange-50 text-orange-700"
+                            : "border-zinc-200 text-zinc-600 hover:border-zinc-300"
+                        }`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Price */}
               <div className="flex items-baseline gap-2 mb-4">
                 <span className="text-2xl font-black text-zinc-900">
-                  {formatPrice(product.price)}
+                  {formatPrice(selectedVariant ? selectedVariant.price : product.price)}
                 </span>
-                {product.price_label && (
+                {product.price_label && !product.has_variants && (
                   <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
                     {product.price_label}
+                  </span>
+                )}
+                {product.has_variants && selectedVariant && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                    {selectedVariant.label}
                   </span>
                 )}
               </div>

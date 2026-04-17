@@ -73,9 +73,27 @@ export function ProductForm({ productId }: ProductFormProps) {
     price_label: "Sin marca",
     category_id: "",
     subcategory_id: "",
+    has_variants: false,
   });
 
   const [colors, setColors] = useState<ColorInput[]>([]);
+
+  // Variants
+  interface VariantInput { id?: string; label: string; price: string; reference: string; is_default: boolean; }
+  const [variants, setVariants] = useState<VariantInput[]>([]);
+  const addVariant = () => setVariants((v) => [...v, { label: "", price: "", reference: "", is_default: v.length === 0 }]);
+  const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
+  const updateVariant = (i: number, field: keyof VariantInput, value: string | boolean) => {
+    setVariants((v) => {
+      const updated = [...v];
+      if (field === "is_default") {
+        updated.forEach((vr, idx) => { updated[idx] = { ...vr, is_default: idx === i }; });
+      } else {
+        updated[i] = { ...updated[i], [field]: value };
+      }
+      return updated;
+    });
+  };
 
   // Load categories + existing product data
   useEffect(() => {
@@ -99,8 +117,12 @@ export function ProductForm({ productId }: ProductFormProps) {
             price_label: product.price_label,
             category_id: product.category_id ?? "",
             subcategory_id: product.subcategory_id ?? "",
+            has_variants: product.has_variants ?? false,
           });
           setColors((product.product_colors ?? []).map((c: any) => ({ id: c.id, name: c.name, hex_color: c.hex_color })));
+          // Load variants
+          const { data: varData } = await supabase.from("product_variants").select("*").eq("product_id", productId).order("display_order");
+          setVariants((varData ?? []).map((v: any) => ({ id: v.id, label: v.label, price: String(v.price), reference: v.reference ?? "", is_default: v.is_default })));
           setImages((product.product_images ?? []).sort((a: any, b: any) => a.display_order - b.display_order));
           if (product.category_id) {
             const { data: subs } = await supabase.from("subcategories").select("*").eq("category_id", product.category_id).order("display_order");
@@ -307,18 +329,27 @@ export function ProductForm({ productId }: ProductFormProps) {
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!form.name || !form.reference || !form.price) { toast.error("Completa nombre, referencia y precio"); return; }
+    if (!form.name || !form.reference) { toast.error("Completa nombre y referencia"); return; }
+    if (!form.has_variants && !form.price) { toast.error("Completa el precio o activa variantes"); return; }
+    if (form.has_variants && variants.length === 0) { toast.error("Agrega al menos una variante de precio"); return; }
+    if (form.has_variants && variants.some((v) => !v.label || !v.price)) { toast.error("Todas las variantes deben tener nombre y precio"); return; }
     if (refStatus === "duplicate") { toast.error("Esa referencia ya existe — edita el producto existente"); return; }
 
     setSaving(true);
+    // If using variants, price = minimum variant price
+    const effectivePrice = form.has_variants
+      ? Math.min(...variants.map((v) => parseInt(v.price) || 0))
+      : parseInt(form.price);
+
     const payload = {
       reference: form.reference.trim().toUpperCase(),
       name: form.name.trim(),
       description: form.description || null,
-      price: parseInt(form.price),
+      price: effectivePrice,
       price_label: form.price_label,
       category_id: form.category_id || null,
       subcategory_id: form.subcategory_id || null,
+      has_variants: form.has_variants,
       updated_at: new Date().toISOString(),
     };
 
@@ -358,6 +389,21 @@ export function ProductForm({ productId }: ProductFormProps) {
       if (validColors.length > 0) {
         await supabase.from("product_colors").insert(
           validColors.map((c, i) => ({ product_id: productIdResult, name: c.name, hex_color: c.hex_color, display_order: i }))
+        );
+      }
+
+      // Sync variants
+      await supabase.from("product_variants").delete().eq("product_id", productIdResult);
+      if (form.has_variants && variants.length > 0) {
+        await supabase.from("product_variants").insert(
+          variants.map((v, i) => ({
+            product_id: productIdResult,
+            label: v.label.trim(),
+            price: parseInt(v.price) || 0,
+            reference: v.reference.trim() || null,
+            is_default: v.is_default,
+            display_order: i,
+          }))
         );
       }
     }
@@ -452,18 +498,109 @@ export function ProductForm({ productId }: ProductFormProps) {
                   )}
                 </div>
                 <div>
-                  <Label>Precio publicado (COP) *</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label>Precio publicado (COP) {!form.has_variants && "*"}</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400">Variantes</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !form.has_variants;
+                          setForm({ ...form, has_variants: next });
+                          if (next && variants.length === 0) addVariant();
+                        }}
+                        className={`relative h-5 w-9 rounded-full transition-colors focus:outline-none ${form.has_variants ? "bg-orange-500" : "bg-zinc-300"}`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${form.has_variants ? "translate-x-4" : "translate-x-0.5"}`} />
+                      </button>
+                    </div>
+                  </div>
                   <Input
                     type="number"
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    placeholder="31311"
+                    placeholder={form.has_variants ? "Se calcula del mínimo" : "31311"}
+                    disabled={form.has_variants}
+                    className={form.has_variants ? "opacity-40 cursor-not-allowed" : ""}
                   />
+                  {form.has_variants && (
+                    <p className="mt-1 text-xs text-orange-600">El precio base se toma del mínimo de variantes</p>
+                  )}
                 </div>
               </div>
+
+              {/* ── Variants table ── */}
+              {form.has_variants && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-zinc-700">Variantes de precio</p>
+                    <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1 text-xs">
+                      <Plus className="h-3 w-3" /> Agregar variante
+                    </Button>
+                  </div>
+                  {variants.length === 0 && (
+                    <p className="text-xs text-zinc-400 text-center py-2">Sin variantes — agrega al menos una</p>
+                  )}
+                  <div className="space-y-2">
+                    {variants.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-lg bg-white border border-zinc-200 px-3 py-2">
+                        <div className="flex-1 grid grid-cols-3 gap-2">
+                          <div>
+                            <p className="text-[10px] text-zinc-400 mb-0.5">Nombre</p>
+                            <Input
+                              value={v.label}
+                              onChange={(e) => updateVariant(i, "label", e.target.value)}
+                              placeholder="Ej: 8 GB"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-zinc-400 mb-0.5">Precio (COP)</p>
+                            <Input
+                              type="number"
+                              value={v.price}
+                              onChange={(e) => updateVariant(i, "price", e.target.value)}
+                              placeholder="28500"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-zinc-400 mb-0.5">Ref. variante (opcional)</p>
+                            <Input
+                              value={v.reference}
+                              onChange={(e) => updateVariant(i, "reference", e.target.value)}
+                              placeholder="USB-8G"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-1">
+                          <button
+                            type="button"
+                            onClick={() => updateVariant(i, "is_default", true)}
+                            title="Marcar como predeterminada"
+                            className={`h-5 w-5 rounded-full border-2 transition-colors ${v.is_default ? "border-orange-500 bg-orange-500" : "border-zinc-300 hover:border-orange-300"}`}
+                          >
+                            {v.is_default && <span className="flex items-center justify-center h-full w-full text-white text-[8px] font-bold">✓</span>}
+                          </button>
+                          <button type="button" onClick={() => removeVariant(i)} className="text-zinc-300 hover:text-red-500 transition-colors">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {variants.length > 0 && (
+                    <p className="text-[10px] text-zinc-400">● = variante predeterminada (la que aparece seleccionada por defecto)</p>
+                  )}
+                </div>
+              )}
+
               <PriceCalculator
-                currentPrice={parseInt(form.price) || undefined}
-                onApply={(price) => setForm({ ...form, price: String(price) })}
+                currentPrice={!form.has_variants ? (parseInt(form.price) || undefined) : undefined}
+                onApply={(price) => {
+                  if (!form.has_variants) setForm({ ...form, price: String(price) });
+                }}
               />
               <div>
                 <Label>Nombre *</Label>

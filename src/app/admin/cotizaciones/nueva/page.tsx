@@ -25,6 +25,7 @@ import {
   Search,
   UserPlus,
   LayoutTemplate,
+  Layers,
 } from "lucide-react";
 import {
   Dialog,
@@ -80,6 +81,11 @@ export default function NuevaCotizacionPage() {
   const [inlineSearch, setInlineSearch] = useState("");
   const [showInlineDropdown, setShowInlineDropdown] = useState(false);
 
+  // Variant picker
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+  const [variantList, setVariantList] = useState<{ id: string; label: string; price: number; is_default: boolean }[]>([]);
+  const [showVariantDialog, setShowVariantDialog] = useState(false);
+
   // New client dialog
   const [showClientDialog, setShowClientDialog] = useState(false);
   const [newClient, setNewClient] = useState({
@@ -94,10 +100,10 @@ export default function NuevaCotizacionPage() {
     const load = async () => {
       const [c, p] = await Promise.all([
         supabase.from("clients").select("*").order("company"),
-        supabase.from("products").select("*").order("name"),
+        supabase.from("products").select("id, reference, name, description, price, has_variants").order("name"),
       ]);
       setClients(c.data ?? []);
-      setProducts(p.data ?? []);
+      setProducts((p.data ?? []) as Product[]);
     };
     load();
   }, []);
@@ -119,23 +125,43 @@ export default function NuevaCotizacionPage() {
       minimumFractionDigits: 0,
     }).format(n);
 
-  // Add product to quote
-  const addProduct = (product: Product) => {
-    setItems([
-      ...items,
-      {
-        product_id: product.id,
-        product_name: product.name,
-        product_reference: product.reference,
-        quantity: 100,
-        unit_price: product.price,
-        marking_type: "Sin marcado",
-        marking_price: 0,
-        notes: product.description ?? "",
-      },
-    ]);
+  // Add product to quote — opens variant picker if needed
+  const addProduct = async (product: Product) => {
     setShowProductDialog(false);
     setProductSearch("");
+    setInlineSearch("");
+    setShowInlineDropdown(false);
+
+    if ((product as any).has_variants) {
+      // Load variants then show picker
+      const { data: vData } = await supabase
+        .from("product_variants")
+        .select("id, label, price, is_default")
+        .eq("product_id", product.id)
+        .order("display_order");
+      setVariantList(vData ?? []);
+      setVariantPickerProduct(product);
+      setShowVariantDialog(true);
+      return;
+    }
+
+    addProductWithPrice(product, product.price, null);
+  };
+
+  const addProductWithPrice = (product: Product, price: number, variantLabel: string | null) => {
+    setItems((prev) => [
+      ...prev,
+      {
+        product_id: product.id,
+        product_name: variantLabel ? `${product.name} — ${variantLabel}` : product.name,
+        product_reference: product.reference,
+        quantity: 100,
+        unit_price: price,
+        marking_type: "Sin marcado",
+        marking_price: 0,
+        notes: (product as any).description ?? "",
+      },
+    ]);
   };
 
   const addManualItem = () => {
@@ -325,19 +351,20 @@ export default function NuevaCotizacionPage() {
                       <button
                         key={p.id}
                         type="button"
-                        onMouseDown={() => {
-                          addProduct(p);
-                          setInlineSearch("");
-                          setShowInlineDropdown(false);
-                        }}
+                        onMouseDown={() => { addProduct(p); }}
                         className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-50 border-b border-zinc-100 last:border-0"
                       >
-                        <div>
-                          <span className="font-mono text-[10px] font-bold text-zinc-400 mr-2 uppercase">{p.reference}</span>
-                          <span className="font-medium text-zinc-800">{p.name}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono text-[10px] font-bold text-zinc-400 uppercase shrink-0">{p.reference}</span>
+                          <span className="font-medium text-zinc-800 truncate">{p.name}</span>
+                          {(p as any).has_variants && (
+                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-1.5 py-0.5">
+                              <Layers className="h-2.5 w-2.5" /> Variantes
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs font-semibold text-zinc-500 shrink-0 ml-3">
-                          {formatPrice(p.price)}
+                          {(p as any).has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
                         </span>
                       </button>
                     ))}
@@ -619,9 +646,14 @@ export default function NuevaCotizacionPage() {
                     {p.reference}
                   </span>
                   <p className="text-sm font-medium">{p.name}</p>
+                  {(p as any).has_variants && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-1.5 py-0.5 mt-0.5">
+                      <Layers className="h-2.5 w-2.5" /> Variantes
+                    </span>
+                  )}
                 </div>
-                <span className="text-sm font-medium text-zinc-600">
-                  {formatPrice(p.price)}
+                <span className="text-sm font-medium text-zinc-600 shrink-0 ml-2">
+                  {(p as any).has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
                 </span>
               </button>
             ))}
@@ -631,6 +663,45 @@ export default function NuevaCotizacionPage() {
               </p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant picker dialog */}
+      <Dialog open={showVariantDialog} onOpenChange={(open) => { if (!open) { setShowVariantDialog(false); setVariantPickerProduct(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-orange-500" />
+              Seleccionar variante
+            </DialogTitle>
+          </DialogHeader>
+          {variantPickerProduct && (
+            <div className="space-y-3 pt-1">
+              <p className="text-sm text-zinc-500">
+                <span className="font-mono text-xs font-bold text-zinc-400 mr-1">{variantPickerProduct.reference}</span>
+                {variantPickerProduct.name}
+              </p>
+              <div className="space-y-2">
+                {variantList.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      addProductWithPrice(variantPickerProduct!, v.price, v.label);
+                      setShowVariantDialog(false);
+                      setVariantPickerProduct(null);
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border-2 border-zinc-200 px-4 py-3 text-left hover:border-orange-400 hover:bg-orange-50 transition-all"
+                  >
+                    <span className="font-medium text-zinc-800">{v.label}</span>
+                    <span className="text-sm font-bold text-orange-600">
+                      {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(v.price)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-400 text-center">Selecciona una variante para agregar a la cotización</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

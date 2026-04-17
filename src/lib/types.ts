@@ -29,6 +29,7 @@ export interface Product {
   description: string | null;
   price: number;
   price_label: string;
+  has_variants: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -37,6 +38,18 @@ export interface Product {
   subcategory?: Subcategory;
   product_colors?: ProductColor[];
   product_images?: ProductImage[];
+  product_variants?: ProductVariant[];
+}
+
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  label: string;
+  price: number;
+  reference: string | null;
+  is_default: boolean;
+  display_order: number;
+  created_at: string;
 }
 
 export interface ProductColor {

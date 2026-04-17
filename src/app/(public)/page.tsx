@@ -86,11 +86,14 @@ export default async function HomePage() {
           </div>
           <div className="cat-grid">
             {cats.map((cat) => (
-              <Link key={cat.id} href={`/catalogo/${cat.slug}`} className="cat-card shine">
-                <div className="cat-icon">{cat.icon}</div>
+              <Link
+                key={cat.id}
+                href={`/catalogo/${cat.slug}`}
+                className="cat-card shine"
+                style={{ backgroundImage: `url('/img/categorias/${cat.slug}.webp')` }}
+              >
                 <div className="cat-name">{cat.name}</div>
-                <div className="cat-count">Ver productos</div>
-                <span className="cat-cta">Ver todos</span>
+                <span className="cat-cta">Ver todos →</span>
               </Link>
             ))}
           </div>

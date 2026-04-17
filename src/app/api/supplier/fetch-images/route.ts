@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const SUPPLIER_BASE = "https://catalogospromocionales.com/images/galeria";
+const GALLERY_BASE  = "https://catalogospromocionales.com/images/galeria";
+const PRODUCTS_BASE = "https://catalogospromocionales.com/images/productos";
 const MAX_GALLERY_IMAGES = 12;
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -63,32 +64,55 @@ async function fetchImagesForProduct(
   const refVariants = [reference.toUpperCase(), reference.toLowerCase()];
 
   for (const ref of refVariants) {
-    if (foundUrls.length > 0) break; // Stop if we already found images with first variant
+    if (foundUrls.length > 0) break;
 
-    // Try numbered gallery images
-    for (let n = 1; n <= MAX_GALLERY_IMAGES; n++) {
-      const url = `${SUPPLIER_BASE}/${ref}/${ref}-${n}.jpg`;
-      const exists = await checkUrlExists(url);
-      if (!exists) {
-        // Also try starting at 2 if n=1 didn't work
-        if (n === 1) {
-          const url2 = `${SUPPLIER_BASE}/${ref}/${ref}-2.jpg`;
-          const exists2 = await checkUrlExists(url2);
-          if (!exists2) break; // No images at all with this variant
-          // Start from 2
-          foundUrls.push(url2);
-          continue;
-        }
-        break; // Stop on first consecutive 404
-      }
-      foundUrls.push(url);
+    // Gallery images always start at 2 on catalogospromocionales.com
+    // We try 2..MAX. We also try 1 as a fallback in case some products use it.
+    const startCandidates = [2, 1]; // 2 is by far the most common start
+    let startN: number | null = null;
+
+    for (const candidate of startCandidates) {
+      const probe = `${GALLERY_BASE}/${ref}/${ref}-${candidate}.jpg`;
+      if (await checkUrlExists(probe)) { startN = candidate; break; }
     }
 
-    // Also try the unnumbered version
-    const plainUrl = `${SUPPLIER_BASE}/${ref}/${ref}.jpg`;
-    const plainExists = await checkUrlExists(plainUrl);
-    if (plainExists) {
-      foundUrls.push(plainUrl);
+    if (startN !== null) {
+      // Found the starting image — walk forward until 404
+      for (let n = startN; n <= startN + MAX_GALLERY_IMAGES; n++) {
+        const url = `${GALLERY_BASE}/${ref}/${ref}-${n}.jpg`;
+        if (!(await checkUrlExists(url))) break;
+        foundUrls.push(url);
+      }
+    }
+
+    // Also try the unnumbered version (some products only have REF.jpg with no number)
+    const plainUrl = `${GALLERY_BASE}/${ref}/${ref}.jpg`;
+    if (await checkUrlExists(plainUrl)) foundUrls.push(plainUrl);
+  }
+
+  // ── Fallback: main product image from /images/productos/{numericId}.jpg ──
+  // The numeric supplier ID lives in supplier_product_cache.page_url
+  // e.g. https://catalogospromocionales.com/p/slug/10852/9  →  ID = 10852
+  if (foundUrls.length === 0) {
+    try {
+      const { data: cacheRow } = await supabase
+        .from("supplier_product_cache")
+        .select("page_url")
+        .eq("reference", reference.toUpperCase())
+        .maybeSingle();
+
+      if (cacheRow?.page_url) {
+        const match = cacheRow.page_url.match(/\/p\/[^/]+\/(\d+)\//);
+        if (match) {
+          const numericId = match[1];
+          const mainImgUrl = `${PRODUCTS_BASE}/${numericId}.jpg`;
+          if (await checkUrlExists(mainImgUrl)) {
+            foundUrls.push(mainImgUrl);
+          }
+        }
+      }
+    } catch {
+      // If cache lookup fails, continue without main image
     }
   }
 

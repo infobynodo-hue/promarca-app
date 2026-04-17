@@ -97,15 +97,31 @@ export default async function HomePage() {
               >
                 <LiquidButton
                   variant="orange"
-                  size="sm"
-                  style={{ marginBottom: "6px", alignSelf: "flex-start" }}
+                  style={{
+                    marginBottom: "8px",
+                    alignSelf: "flex-start",
+                    position: "relative",
+                    zIndex: 2,
+                    padding: "6px 14px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    letterSpacing: "-0.01em",
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   {cat.name}
                 </LiquidButton>
                 <LiquidButton
                   variant="glass"
-                  size="sm"
-                  style={{ alignSelf: "flex-start", fontSize: "11px" }}
+                  style={{
+                    alignSelf: "flex-start",
+                    position: "relative",
+                    zIndex: 2,
+                    padding: "5px 12px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   Ver todos →
                 </LiquidButton>

@@ -68,22 +68,22 @@ export const liquidbuttonVariants = cva(
 /* ─── Inline style maps per variant ─── */
 const variantStyles: Record<string, React.CSSProperties> = {
   glass: {
-    background: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(12px) saturate(180%)",
-    WebkitBackdropFilter: "blur(12px) saturate(180%)",
-    border: "1px solid rgba(255,255,255,0.30)",
+    background: "rgba(255,107,26,0.55)",
+    backdropFilter: "blur(14px) saturate(200%)",
+    WebkitBackdropFilter: "blur(14px) saturate(200%)",
+    border: "1px solid rgba(255,140,60,0.55)",
     boxShadow:
-      "0 2px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -1px 0 rgba(0,0,0,0.10)",
+      "0 2px 16px rgba(255,107,26,0.30), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.12)",
     color: "#ffffff",
     filter: "url(#liquid-glass-filter)",
   },
   orange: {
-    background: "rgba(255,107,26,0.22)",
-    backdropFilter: "blur(12px) saturate(180%)",
-    WebkitBackdropFilter: "blur(12px) saturate(180%)",
-    border: "1px solid rgba(255,107,26,0.40)",
+    background: "rgba(255,107,26,0.70)",
+    backdropFilter: "blur(14px) saturate(200%)",
+    WebkitBackdropFilter: "blur(14px) saturate(200%)",
+    border: "1px solid rgba(255,150,70,0.65)",
     boxShadow:
-      "0 2px 12px rgba(255,107,26,0.20), inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.08)",
+      "0 2px 16px rgba(255,107,26,0.40), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.12)",
     color: "#ffffff",
     filter: "url(#liquid-glass-filter)",
   },

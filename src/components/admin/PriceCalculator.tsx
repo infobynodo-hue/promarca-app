@@ -27,7 +27,7 @@ export function PriceCalculator({ onApply, currentPrice }: Props) {
 
   const provider = parseFloat(providerPrice.replace(/\./g, "").replace(",", ".")) || 0;
   const cost         = provider * (1 - discountPct / 100);
-  const margin       = cost * (marginPct / 100);
+  const margin       = provider * (marginPct / 100);
   const subtotal     = cost + margin;
   const iva          = subtotal * (ivaPct / 100);
   const finalPrice   = subtotal + iva;
@@ -117,7 +117,7 @@ export function PriceCalculator({ onApply, currentPrice }: Props) {
                 <span>{fmt(cost)}</span>
               </div>
               <div className="flex justify-between px-4 py-2.5 text-zinc-500">
-                <span>Tu ganancia ({marginPct}% sobre tu costo)</span>
+                <span>Tu ganancia ({marginPct}% sobre precio proveedor)</span>
                 <span className="font-medium text-green-600">+ {fmt(margin)}</span>
               </div>
               <div className="flex justify-between px-4 py-2.5 text-zinc-500">

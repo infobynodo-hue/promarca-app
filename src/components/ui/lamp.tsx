@@ -5,8 +5,21 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
- * LampContainer — ProMarca edition
- * Faithful port of the Aceternity lamp, orange-branded, fixed height.
+ * LampContainer — ProMarca edition.
+ *
+ * Key structural insight vs. the original (min-h-screen):
+ * The original uses flex-justify-center + big negative translate-y on
+ * content, which leaves a large black void below. For a compact hero we
+ * instead:
+ *   1. Size the container to fit content via padding (no min-h-screen).
+ *   2. Put ALL beam / glow / ceiling elements inside an absolute overlay
+ *      that has ITS OWN overflow-hidden — so they clip inside cleanly.
+ *   3. Content sits in normal flow with padding, so the container
+ *      auto-sizes and there is zero wasted space below.
+ *
+ * The beam elements are positioned relative to the center of the
+ * absolute overlay (which equals the container center), so the math
+ * from the original still holds.
  */
 export const LampContainer = ({
   children,
@@ -15,73 +28,49 @@ export const LampContainer = ({
   children: React.ReactNode;
   className?: string;
 }) => {
+  const BG = "#070707";
+
   return (
     <div
-      className={cn("relative w-full", className)}
-      style={{
-        background: "#080808",
-        /* Clip only the decorative beams, NOT the text */
-        isolation: "isolate",
-      }}
+      className={cn("relative w-full z-0", className)}
+      style={{ background: BG }}
     >
-      {/* ── Lamp beams (overflow clipped to this inner div only) ── */}
+      {/* ══════════════════════════════════════════════
+          Beam overlay — position:absolute, own overflow-hidden
+          Beam elements are centered relative to THIS div's height,
+          which matches the container height (inset:0).
+      ══════════════════════════════════════════════ */}
       <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          overflow: "hidden",
-          pointerEvents: "none",
-        }}
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+        aria-hidden="true"
       >
-        {/* scale-y-125 stretches beams vertically, same as original */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transform: "scaleY(1.25)",
-            transformOrigin: "center",
-          }}
-        >
+        {/* scale-y-125 stretches beams vertically — same as original */}
+        <div className="relative flex w-full h-full scale-y-125 items-center justify-center isolate z-0">
+
           {/* ── LEFT beam ── */}
           <motion.div
-            initial={{ opacity: 0.5, width: "10rem" }}
-            whileInView={{ opacity: 1, width: "28rem" }}
+            initial={{ opacity: 0.5, width: "15rem" }}
+            whileInView={{ opacity: 1, width: "30rem" }}
             viewport={{ once: true }}
-            transition={{ delay: 0.15, duration: 0.9, ease: "easeInOut" }}
+            transition={{ delay: 0.3, duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-auto right-1/2 h-56 overflow-visible w-[30rem]"
             style={{
-              position: "absolute",
-              right: "50%",
-              height: "14rem",
               backgroundImage:
                 "conic-gradient(from 70deg at center top, #FF6B1A, transparent, transparent)",
-              overflow: "visible",
             }}
           >
-            {/* bottom fade */}
             <div
+              className="absolute w-full left-0 h-40 bottom-0 z-20"
               style={{
-                position: "absolute",
-                width: "100%",
-                left: 0,
-                height: "10rem",
-                bottom: 0,
-                background: "#080808",
+                background: BG,
                 maskImage: "linear-gradient(to top, white, transparent)",
                 WebkitMaskImage: "linear-gradient(to top, white, transparent)",
               }}
             />
-            {/* left fade */}
             <div
+              className="absolute w-40 h-full left-0 bottom-0 z-20"
               style={{
-                position: "absolute",
-                width: "8rem",
-                height: "100%",
-                left: 0,
-                bottom: 0,
-                background: "#080808",
+                background: BG,
                 maskImage: "linear-gradient(to right, white, transparent)",
                 WebkitMaskImage: "linear-gradient(to right, white, transparent)",
               }}
@@ -90,139 +79,84 @@ export const LampContainer = ({
 
           {/* ── RIGHT beam ── */}
           <motion.div
-            initial={{ opacity: 0.5, width: "10rem" }}
-            whileInView={{ opacity: 1, width: "28rem" }}
+            initial={{ opacity: 0.5, width: "15rem" }}
+            whileInView={{ opacity: 1, width: "30rem" }}
             viewport={{ once: true }}
-            transition={{ delay: 0.15, duration: 0.9, ease: "easeInOut" }}
+            transition={{ delay: 0.3, duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-auto left-1/2 h-56 w-[30rem]"
             style={{
-              position: "absolute",
-              left: "50%",
-              height: "14rem",
               backgroundImage:
                 "conic-gradient(from 290deg at center top, transparent, transparent, #FF6B1A)",
-              overflow: "visible",
             }}
           >
-            {/* right fade */}
             <div
+              className="absolute w-40 h-full right-0 bottom-0 z-20"
               style={{
-                position: "absolute",
-                width: "8rem",
-                height: "100%",
-                right: 0,
-                bottom: 0,
-                background: "#080808",
+                background: BG,
                 maskImage: "linear-gradient(to left, white, transparent)",
                 WebkitMaskImage: "linear-gradient(to left, white, transparent)",
               }}
             />
-            {/* bottom fade */}
             <div
+              className="absolute w-full right-0 h-40 bottom-0 z-20"
               style={{
-                position: "absolute",
-                width: "100%",
-                right: 0,
-                height: "10rem",
-                bottom: 0,
-                background: "#080808",
+                background: BG,
                 maskImage: "linear-gradient(to top, white, transparent)",
                 WebkitMaskImage: "linear-gradient(to top, white, transparent)",
               }}
             />
           </motion.div>
 
-          {/* Dark blur that eats the bottom of the beams */}
+          {/* Dark blur eats beam tails at bottom */}
           <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              height: "12rem",
-              width: "100%",
-              transform: "translateY(3rem) scaleX(1.5)",
-              background: "#080808",
-              filter: "blur(24px)",
-            }}
+            className="absolute top-1/2 h-48 w-full translate-y-12 scale-x-150 blur-2xl"
+            style={{ background: BG }}
           />
 
-          {/* Wide ambient glow at center */}
+          {/* Subtle backdrop blur layer */}
+          <div className="absolute top-1/2 z-50 h-48 w-full bg-transparent opacity-10 backdrop-blur-md" />
+
+          {/* Wide ambient glow */}
           <div
-            style={{
-              position: "absolute",
-              height: "9rem",
-              width: "28rem",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              borderRadius: "9999px",
-              background: "#FF6B1A",
-              opacity: 0.45,
-              filter: "blur(48px)",
-              zIndex: 50,
-            }}
+            className="absolute inset-auto z-50 h-36 w-[28rem] -translate-y-1/2 rounded-full opacity-50 blur-3xl"
+            style={{ background: "#FF6B1A" }}
           />
 
-          {/* Tight inner glow — the "bulb" */}
+          {/* Tight inner glow */}
           <motion.div
-            initial={{ width: "5rem" }}
-            whileInView={{ width: "12rem" }}
+            initial={{ width: "8rem" }}
+            whileInView={{ width: "16rem" }}
             viewport={{ once: true }}
-            transition={{ delay: 0.15, duration: 0.9, ease: "easeInOut" }}
-            style={{
-              position: "absolute",
-              height: "9rem",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, calc(-50% - 5.5rem))",
-              borderRadius: "9999px",
-              background: "#FF9450",
-              filter: "blur(20px)",
-              zIndex: 30,
-            }}
+            transition={{ delay: 0.3, duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-auto z-30 h-36 w-64 -translate-y-[6rem] rounded-full blur-2xl"
+            style={{ background: "#FF8C42" }}
           />
 
-          {/* Filament — the horizontal bar */}
+          {/* Filament — the glowing horizontal bar */}
           <motion.div
-            initial={{ width: "10rem" }}
-            whileInView={{ width: "28rem" }}
+            initial={{ width: "15rem" }}
+            whileInView={{ width: "30rem" }}
             viewport={{ once: true }}
-            transition={{ delay: 0.15, duration: 0.9, ease: "easeInOut" }}
-            style={{
-              position: "absolute",
-              height: "2px",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, calc(-50% - 7rem))",
-              background: "linear-gradient(to right, transparent, #FFB380, #FFD4B3, #FFB380, transparent)",
-              zIndex: 50,
-              borderRadius: 9999,
-            }}
+            transition={{ delay: 0.3, duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-auto z-50 h-0.5 w-[30rem] -translate-y-[7rem]"
+            style={{ background: "#FFB068" }}
           />
 
-          {/* Hard cutoff below the lamp — creates the "ceiling" line */}
+          {/* Hard dark ceiling — hides lamp origin, creates crisp top edge */}
           <div
-            style={{
-              position: "absolute",
-              height: "11rem",
-              width: "100%",
-              top: "50%",
-              transform: "translateY(-12.5rem)",
-              background: "#080808",
-              zIndex: 40,
-            }}
+            className="absolute inset-auto z-40 h-44 w-full -translate-y-[12.5rem]"
+            style={{ background: BG }}
           />
         </div>
       </div>
 
-      {/* ── Content — rendered OVER the beams, no overflow clipping ── */}
+      {/* ══════════════════════════════════════════════
+          Content — normal flow, just padding.
+          Container height = this div's height = no wasted space.
+      ══════════════════════════════════════════════ */}
       <div
-        style={{
-          position: "relative",
-          zIndex: 50,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "56px 20px 52px",
-        }}
+        className="relative z-50 flex flex-col items-center w-full"
+        style={{ padding: "64px 20px 56px" }}
       >
         {children}
       </div>

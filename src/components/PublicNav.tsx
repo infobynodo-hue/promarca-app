@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { Heart } from "lucide-react";
+import { useFavorites } from "@/contexts/FavoritesContext";
 
 const NAV_LINKS = [
   { label: "Catálogo",        href: "/#catalogo" },
@@ -86,6 +88,7 @@ export function PublicNav() {
     width: 0,
     opacity: 0,
   });
+  const { count, openDrawer } = useFavorites();
 
   return (
     <nav
@@ -177,14 +180,71 @@ export function PublicNav() {
         ))}
       </ul>
 
-      {/* ── Right: Cotizar button ── */}
+      {/* ── Right: Favorites + Cotizar ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          gap: "10px",
           flexShrink: 0,
         }}
       >
+        {/* Favorites heart button */}
+        <button
+          onClick={openDrawer}
+          aria-label="Ver favoritos"
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            border: "1px solid rgba(255,107,26,0.20)",
+            background: count > 0
+              ? "rgba(255,107,26,0.10)"
+              : "rgba(245,245,247,0.80)",
+            cursor: "pointer",
+            color: "#FF6B1A",
+            transition: "all 0.2s ease",
+            flexShrink: 0,
+          }}
+        >
+          <Heart
+            style={{
+              width: 16,
+              height: 16,
+              fill: count > 0 ? "#FF6B1A" : "none",
+              color: "#FF6B1A",
+              transition: "fill 0.2s ease",
+            }}
+          />
+          {count > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: -4,
+                right: -4,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9999,
+                background: "#FF6B1A",
+                color: "#ffffff",
+                fontSize: 10,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 4px",
+                lineHeight: 1,
+                boxShadow: "0 1px 4px rgba(255,107,26,0.50)",
+              }}
+            >
+              {count}
+            </span>
+          )}
+        </button>
         <a
           href="https://wa.me/573025212938?text=Hola!%20Quisiera%20cotizar%20productos%20promocionales"
           target="_blank"

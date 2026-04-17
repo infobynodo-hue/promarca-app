@@ -2,6 +2,8 @@ import "./public.css";
 import { Inter } from "next/font/google";
 import { PublicFooter } from "@/components/PublicFooter";
 import { PublicNav } from "@/components/PublicNav";
+import { FavoritesProvider } from "@/contexts/FavoritesContext";
+import { FavoritesDrawer } from "@/components/public/FavoritesDrawer";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -12,15 +14,20 @@ export const metadata = {
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`pm-site ${inter.className}`}>
-      {/* ── Navigation ── */}
-      <PublicNav />
+    <FavoritesProvider>
+      <div className={`pm-site ${inter.className}`}>
+        {/* ── Navigation ── */}
+        <PublicNav />
 
-      {/* ── Page content ── */}
-      {children}
+        {/* ── Page content ── */}
+        {children}
 
-      {/* ── Footer ── */}
-      <PublicFooter />
-    </div>
+        {/* ── Footer ── */}
+        <PublicFooter />
+
+        {/* ── Favorites slide-out drawer ── */}
+        <FavoritesDrawer />
+      </div>
+    </FavoritesProvider>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart } from "lucide-react";
+import { useFavorites } from "@/contexts/FavoritesContext";
 
 interface Color {
   id: string;
@@ -29,6 +30,7 @@ const formatPrice = (price: number) =>
   }).format(price);
 
 export function PublicProductCard({
+  id,
   reference,
   name,
   price,
@@ -41,6 +43,8 @@ export function PublicProductCard({
   const [imgIdx, setImgIdx] = useState(0);
   const [hovered, setHovered] = useState(false);
   const hasMultiple = images.length > 1;
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const favorited = isFavorite(id);
 
   const prev = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -70,6 +74,56 @@ export function PublicProductCard({
         ) : (
           <div className="product-thumb-placeholder">📦</div>
         )}
+
+        {/* ── Heart / favorite button ── */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFavorite({
+              id,
+              reference,
+              name,
+              price,
+              price_label,
+              has_variants,
+              imageUrl: images[0] ?? "",
+            });
+          }}
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 3,
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: favorited
+              ? "rgba(255,107,26,0.90)"
+              : "rgba(255,255,255,0.80)",
+            backdropFilter: "blur(8px)",
+            boxShadow: favorited
+              ? "0 2px 10px rgba(255,107,26,0.40)"
+              : "0 1px 6px rgba(0,0,0,0.12)",
+            transition: "all 0.2s ease",
+            transform: hovered || favorited ? "scale(1.08)" : "scale(1)",
+          }}
+          aria-label={favorited ? "Quitar de favoritos" : "Agregar a favoritos"}
+        >
+          <Heart
+            style={{
+              width: 14,
+              height: 14,
+              color: favorited ? "#ffffff" : "#FF6B1A",
+              fill: favorited ? "#ffffff" : "none",
+              transition: "all 0.2s ease",
+            }}
+          />
+        </button>
 
         {/* Arrows — only on hover with multiple images */}
         {hasMultiple && hovered && (

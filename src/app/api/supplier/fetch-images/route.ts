@@ -60,75 +60,85 @@ async function fetchImagesForProduct(
     return { found: false, imagesCount: 0, reference, productId, productName, error: "Referencia inválida" };
   }
 
-  const foundUrls: string[] = [];
-  const refVariants = [reference.toUpperCase(), reference.toLowerCase()];
+  const ref = reference.toUpperCase();
 
-  for (const ref of refVariants) {
-    if (foundUrls.length > 0) break;
+  // ── 1. Look up supplier cache to get the numeric product ID ──
+  // page_url format: https://catalogospromocionales.com/p/slug/10852/9 → ID = 10852
+  let mainImageUrl: string | null = null;
+  try {
+    const { data: cacheRow } = await supabase
+      .from("supplier_product_cache")
+      .select("page_url")
+      .eq("reference", ref)
+      .maybeSingle();
 
-    // Gallery images always start at 2 on catalogospromocionales.com
-    // We try 2..MAX. We also try 1 as a fallback in case some products use it.
-    const startCandidates = [2, 1]; // 2 is by far the most common start
+    if (cacheRow?.page_url) {
+      const m = cacheRow.page_url.match(/\/p\/[^/]+\/(\d+)\//);
+      if (m) {
+        const candidate = `${PRODUCTS_BASE}/${m[1]}.jpg`;
+        if (await checkUrlExists(candidate)) mainImageUrl = candidate;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // ── 2. Collect gallery images in order ──
+  // Gallery images on catalogospromocionales.com start at -2 (not -1).
+  // We probe 2 first, then 1 as a rare fallback.
+  const galleryUrls: string[] = [];
+  const refVariants = [ref, reference.toLowerCase()];
+
+  for (const variant of refVariants) {
+    if (galleryUrls.length > 0) break;
+
+    const startCandidates = [2, 1];
     let startN: number | null = null;
-
-    for (const candidate of startCandidates) {
-      const probe = `${GALLERY_BASE}/${ref}/${ref}-${candidate}.jpg`;
-      if (await checkUrlExists(probe)) { startN = candidate; break; }
+    for (const n of startCandidates) {
+      if (await checkUrlExists(`${GALLERY_BASE}/${variant}/${variant}-${n}.jpg`)) {
+        startN = n; break;
+      }
     }
 
     if (startN !== null) {
-      // Found the starting image — walk forward until 404
       for (let n = startN; n <= startN + MAX_GALLERY_IMAGES; n++) {
-        const url = `${GALLERY_BASE}/${ref}/${ref}-${n}.jpg`;
+        const url = `${GALLERY_BASE}/${variant}/${variant}-${n}.jpg`;
         if (!(await checkUrlExists(url))) break;
-        foundUrls.push(url);
+        galleryUrls.push(url);
       }
     }
 
-    // Also try the unnumbered version (some products only have REF.jpg with no number)
-    const plainUrl = `${GALLERY_BASE}/${ref}/${ref}.jpg`;
-    if (await checkUrlExists(plainUrl)) foundUrls.push(plainUrl);
+    // Some products also have an unnumbered REF.jpg
+    const plain = `${GALLERY_BASE}/${variant}/${variant}.jpg`;
+    if (await checkUrlExists(plain)) galleryUrls.push(plain);
   }
 
-  // ── Fallback: main product image from /images/productos/{numericId}.jpg ──
-  // The numeric supplier ID lives in supplier_product_cache.page_url
-  // e.g. https://catalogospromocionales.com/p/slug/10852/9  →  ID = 10852
-  if (foundUrls.length === 0) {
-    try {
-      const { data: cacheRow } = await supabase
-        .from("supplier_product_cache")
-        .select("page_url")
-        .eq("reference", reference.toUpperCase())
-        .maybeSingle();
+  // ── 3. Build final ordered list: main image first, then gallery ──
+  // This mirrors exactly what the supplier shows on their product page.
+  const orderedUrls: { url: string; isPrimary: boolean; label: string }[] = [];
 
-      if (cacheRow?.page_url) {
-        const match = cacheRow.page_url.match(/\/p\/[^/]+\/(\d+)\//);
-        if (match) {
-          const numericId = match[1];
-          const mainImgUrl = `${PRODUCTS_BASE}/${numericId}.jpg`;
-          if (await checkUrlExists(mainImgUrl)) {
-            foundUrls.push(mainImgUrl);
-          }
-        }
-      }
-    } catch {
-      // If cache lookup fails, continue without main image
-    }
+  if (mainImageUrl) {
+    orderedUrls.push({ url: mainImageUrl, isPrimary: true, label: "principal" });
   }
+  galleryUrls.forEach((url, i) => {
+    orderedUrls.push({
+      url,
+      isPrimary: !mainImageUrl && i === 0, // primary only if no main image
+      label: `galeria-${i + 1}`,
+    });
+  });
 
-  if (foundUrls.length === 0) {
+  if (orderedUrls.length === 0) {
     return { found: false, imagesCount: 0, reference, productId, productName };
   }
 
-  // Upload each image to Supabase storage and insert DB rows
+  // ── 4. Download & upload each image in order ──
   const insertedImages: { storage_path: string; is_primary: boolean; display_order: number; alt_text: string }[] = [];
 
-  for (let i = 0; i < foundUrls.length; i++) {
-    const url = foundUrls[i];
+  for (let i = 0; i < orderedUrls.length; i++) {
+    const { url, isPrimary, label } = orderedUrls[i];
     const buffer = await fetchImageBuffer(url);
     if (!buffer) continue;
 
-    const storagePath = `${productId}/${reference.toUpperCase()}-supplier-${i + 1}.jpg`;
+    const storagePath = `${productId}/${ref}-${label}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("products")
@@ -141,9 +151,9 @@ async function fetchImagesForProduct(
 
     insertedImages.push({
       storage_path: storagePath,
-      is_primary: i === 0,
+      is_primary: isPrimary,
       display_order: i,
-      alt_text: `${productName} - imagen ${i + 1}`,
+      alt_text: `${productName}${label === "principal" ? "" : ` - imagen ${i}`}`,
     });
   }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HeroCarousel } from "./components/hero-carousel";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
 import { BeforeAfterSlider } from "@/components/public/BeforeAfterSlider";
+import { KitCarousel, type KitOffer } from "@/components/public/KitCarousel";
 
 const clients = [
   { src: "/img/clientes/ecoimagen.png", alt: "Ecoimagen Salud" },
@@ -25,6 +26,69 @@ const testimonials = [
   { initials: "JM", name: "Julián Moreno", handle: "CEO · Agencia Creativa DM", body: "Rápidos, creativos y con muy buen precio. Pedimos tulas y lapiceros para una campaña y el resultado fue 10/10.", date: "Abril 2025" },
   { initials: "VP", name: "Valentina Pineda", handle: "Brand Manager · American Airlines CO", body: "1.000 memorias USB para un congreso internacional. ProMarca lo manejó todo con total profesionalismo y puntualidad.", date: "Diciembre 2024" },
   { initials: "RO", name: "Ricardo Ospina", handle: "Gerente General · Oracle Colombia", body: "Los cuadernos y sombrillas quedaron con un acabado premium que representa muy bien nuestra marca. Excelente experiencia.", date: "Noviembre 2024" },
+];
+
+const kits: KitOffer[] = [
+  {
+    id: "kit-onboarding",
+    imageSrc: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&auto=format&fit=crop",
+    imageAlt: "Kit de bienvenida corporativo",
+    tag: "Más solicitado",
+    title: "Kit de Onboarding",
+    description: "Termo + libreta + lapicero + tula. Ideal para recibir nuevos colaboradores con el branding de tu empresa.",
+    includes: "Termo · Libreta · Lapicero · Tula",
+    href: "#contacto",
+  },
+  {
+    id: "kit-eventos",
+    imageSrc: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=600&auto=format&fit=crop",
+    imageAlt: "Kit para eventos corporativos",
+    tag: "Eventos",
+    title: "Kit para Eventos",
+    description: "Gorra + camiseta + tula con tu logo. Perfecto para conferencias, lanzamientos y ferias empresariales.",
+    includes: "Gorra · Camiseta · Tula",
+    href: "#contacto",
+  },
+  {
+    id: "kit-premium",
+    imageSrc: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop",
+    imageAlt: "Kit ejecutivo premium",
+    tag: "Premium",
+    title: "Kit Ejecutivo",
+    description: "Maletín + termo acero + libreta cuero + set de lapiceros. Para clientes VIP y directivos.",
+    includes: "Maletín · Termo · Set escritorio",
+    href: "#contacto",
+  },
+  {
+    id: "kit-temporada",
+    imageSrc: "https://images.unsplash.com/photo-1512909006721-3d6018887383?w=600&auto=format&fit=crop",
+    imageAlt: "Kit de fin de año",
+    tag: "Temporada",
+    title: "Kit Fin de Año",
+    description: "Caja premium con termo, dulces corporativos, libreta y tarjeta de marca. El detalle perfecto de diciembre.",
+    includes: "Caja · Termo · Libreta · Dulces",
+    href: "#contacto",
+  },
+  {
+    id: "kit-bienestar",
+    imageSrc: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&auto=format&fit=crop",
+    imageAlt: "Kit de bienestar corporativo",
+    tag: "Bienestar",
+    title: "Kit Wellness",
+    description: "Botella deportiva + toalla microfibra + snacks saludables + cuaderno. Para promover el bienestar en tu equipo.",
+    includes: "Botella · Toalla · Cuaderno",
+    href: "#contacto",
+  },
+  {
+    id: "kit-home-office",
+    imageSrc: "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=600&auto=format&fit=crop",
+    imageAlt: "Kit home office corporativo",
+    tag: "Home Office",
+    title: "Kit Home Office",
+    description: "Mouse pad + porta lapiceros + libreta + termo. Para equipar a tus colaboradores remotos con identidad de marca.",
+    includes: "Mouse pad · Porta utensilios · Termo",
+    href: "#contacto",
+  },
 ];
 
 export default async function HomePage() {
@@ -251,20 +315,15 @@ export default async function HomePage() {
       </section>
 
       {/* ── KITS HERO ── */}
-      <section className="hero gray" style={{ minHeight: "60vh" }} id="kits">
+      <section className="hero gray" style={{ minHeight: "auto", paddingBottom: "60px" }} id="kits">
         <p className="hero-eyebrow">Solución integral</p>
         <h1 className="hero-title" style={{ fontSize: "clamp(36px,6vw,66px)" }}>Kits corporativos listos para regalar.</h1>
         <p className="hero-sub">Armamos tu kit a medida: seleccionamos los productos, los personalizamos y los empacamos con tu branding. Perfecto para onboarding, eventos y temporadas.</p>
         <div className="hero-ctas">
           <a href="#contacto" className="btn btn-primary">Cotizar kit personalizado</a>
         </div>
-        <div className="hero-mosaic" style={{ marginTop: "40px" }}>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#e3f0ff,#2997ff)" }}>🎁</div>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#fff3e0,#ffcc00)" }}>📓</div>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#e3ffe3,#34c759)" }}>☕</div>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#ffe0e0,#ff3b30)" }}>🥤</div>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#f3e0ff,#af52de)" }}>🖊️</div>
-          <div className="tile" style={{ background: "linear-gradient(135deg,#1d1d1f,#3d3d3f)" }}>🧢</div>
+        <div style={{ width: "100%", maxWidth: "1100px", margin: "40px auto 0", padding: "0 24px" }}>
+          <KitCarousel kits={kits} />
         </div>
       </section>
 

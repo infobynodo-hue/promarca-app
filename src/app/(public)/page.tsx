@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { HeroCarousel } from "./components/hero-carousel";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
+import { BeforeAfterSlider } from "@/components/public/BeforeAfterSlider";
 
 const clients = [
   { src: "/img/clientes/ecoimagen.png", alt: "Ecoimagen Salud" },
@@ -200,7 +201,15 @@ export default async function HomePage() {
             <p>Usamos las mejores técnicas del mercado: serigrafía, sublimación, bordado 3D, grabado láser y transfer digital. Cada producto pasa por un control de calidad riguroso antes de llegar a tus manos.</p>
             <a href="#contacto" className="btn btn-primary">Solicitar muestra</a>
           </div>
-          <div className="feature-visual">🖨️</div>
+          {/* Before/After slider — replace placeholder with real product photos */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <BeforeAfterSlider
+              beforeImage="/img/personalizacion/producto-sin-logo.jpg"
+              afterImage="/img/personalizacion/producto-con-logo.jpg"
+              beforeLabel="Sin logo"
+              afterLabel="Con tu logo"
+            />
+          </div>
         </div>
       </section>
 

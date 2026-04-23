@@ -40,16 +40,6 @@ export async function middleware(request: NextRequest) {
 
   if (!path.startsWith("/admin")) return supabaseResponse;
 
-  // Allow login page
-  if (path === "/admin/login") {
-    if (user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin/dashboard";
-      return NextResponse.redirect(url);
-    }
-    return supabaseResponse;
-  }
-
   // Not logged in → login
   if (!user) {
     const url = request.nextUrl.clone();
@@ -64,10 +54,22 @@ export async function middleware(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  // No profile → deny access (user exists in Auth but has no profile row)
+  // Allow login page — but only redirect to dashboard if the user has a valid profile
+  // (avoids redirect loop when a user has a session but no profile row)
+  if (path === "/admin/login") {
+    if (profile?.is_active) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/dashboard";
+      return NextResponse.redirect(url);
+    }
+    // No valid profile → stay on login so the user can sign out
+    return supabaseResponse;
+  }
+
+  // No profile row → redirect to public home (NOT login, to avoid the loop)
   if (!profile) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

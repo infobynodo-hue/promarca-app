@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Validates the Bearer token from the Authorization header.
@@ -7,7 +7,8 @@ import { createClient } from "@supabase/supabase-js";
  * Returns a Supabase admin client on success, or a 401/500 NextResponse on failure.
  */
 export function validateApiKey(request: NextRequest):
-  | { ok: true; supabase: ReturnType<typeof createClient> }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | { ok: true; supabase: SupabaseClient<any> }
   | { ok: false; response: NextResponse } {
   const apiKey = process.env.PROMARCA_API_KEY;
 

@@ -14,6 +14,16 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Verify user has a valid active profile (prevents profile-less auth bypass)
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("role, is_active")
+    .eq("id", user.id)
+    .single();
+  if (!profile || !profile.is_active) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const [quoteRes, itemsRes, settingsRes] = await Promise.all([
     supabase.from("quotes").select("*, client:clients(*)").eq("id", id).single(),
     supabase.from("quote_items").select("*").eq("quote_id", id).order("display_order"),

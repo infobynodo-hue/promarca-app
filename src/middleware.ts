@@ -64,8 +64,12 @@ export async function middleware(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  // No profile → treat as admin (legacy user before this feature existed)
-  if (!profile) return supabaseResponse;
+  // No profile → deny access (user exists in Auth but has no profile row)
+  if (!profile) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    return NextResponse.redirect(url);
+  }
 
   // Deactivated user → logout
   if (!profile.is_active) {

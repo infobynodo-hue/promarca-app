@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
         const totalPages = Math.min(parseTotalPages(page1Html), maxPages);
         totalCategories++;
 
-        console.log(`[sync-catalog] Category ${catId} (${categoryName}): ${totalPages} pages`);
+        // Progress tracked in returned stats — no console.log in production
 
         for (let page = 1; page <= totalPages; page++) {
           try {

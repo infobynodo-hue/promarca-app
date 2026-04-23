@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { formatCOP, formatDate } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Borrador",
@@ -31,19 +32,6 @@ const STATUS_COLOR: Record<string, string> = {
   expired: "secondary",
 };
 
-const formatCOP = (n: number) =>
-  new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(n);
-
-const formatDate = (s: string) =>
-  new Date(s).toLocaleDateString("es-CO", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -53,11 +41,10 @@ export default async function DashboardPage() {
     { count: categoryCount },
     { count: clientCount },
     { count: quoteCount },
-    { count: campaignCount },
-    { count: campaignPublishedCount },
+    // Single query for campaigns — filter published count client-side
+    { data: allCampaigns, count: campaignCount },
     { count: proSessionCount },
     { data: recentQuotes },
-    { data: recentCampaigns },
     { data: allItems },
     { data: allProducts },
   ] = await Promise.all([
@@ -65,8 +52,11 @@ export default async function DashboardPage() {
     supabase.from("categories").select("id", { count: "exact", head: true }),
     supabase.from("clients").select("id", { count: "exact", head: true }),
     supabase.from("quotes").select("id", { count: "exact", head: true }),
-    supabase.from("b2c_campaigns").select("id", { count: "exact", head: true }),
-    supabase.from("b2c_campaigns").select("id", { count: "exact", head: true }).eq("status", "published"),
+    // Fetch campaigns with status so we can derive published count from one query
+    supabase
+      .from("b2c_campaigns")
+      .select("id, slug, headline, status, template, created_at, product:products(name)", { count: "exact" })
+      .order("created_at", { ascending: false }),
     supabase.from("pro_sessions").select("id", { count: "exact", head: true }),
     supabase
       .from("quotes")
@@ -74,17 +64,16 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
-      .from("b2c_campaigns")
-      .select("id, slug, headline, status, template, created_at, product:products(name)")
-      .order("created_at", { ascending: false })
-      .limit(4),
-    supabase
       .from("quote_items")
       .select("product_id, product_name, product_reference, quantity, marking_type"),
     supabase
       .from("products")
       .select("id, name, category_id, category:categories(name, icon)"),
   ]);
+
+  // Derive published count and recent campaigns from the single campaigns query
+  const campaignPublishedCount = (allCampaigns ?? []).filter((c) => c.status === "published").length;
+  const recentCampaigns = (allCampaigns ?? []).slice(0, 4);
 
   const items = allItems ?? [];
   const products = allProducts ?? [];

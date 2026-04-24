@@ -182,21 +182,19 @@ async function fetchImagesForProduct(
     };
   }
 
-  // 6. Build ordered list — gallery first (matches supplier display order) ──
-  // The supplier shows gallery images (-2, -3, -4...) as the primary photos.
-  // productos/{id}.jpg is a low-res thumbnail used only as fallback when
-  // no gallery images exist.
+  // 6. Build ordered list — portada first, then gallery ──────────────────
+  // Order matches the supplier's product page:
+  //   1. productos/{id}.jpg  → portada (shows product + all colors) — PRIMARY
+  //   2. galeria/REF-2.jpg   → first gallery image
+  //   3. galeria/REF-3.jpg   → second gallery image  …
   const orderedUrls: { url: string; isPrimary: boolean; label: string }[] = [];
 
-  if (galleryUrls.length > 0) {
-    // Gallery images in order: first one is primary
-    galleryUrls.forEach((url, i) =>
-      orderedUrls.push({ url, isPrimary: i === 0, label: `galeria-${i + 1}` })
-    );
-  } else if (fallbackMainUrl) {
-    // No gallery: use thumbnail as sole image
+  if (fallbackMainUrl) {
     orderedUrls.push({ url: fallbackMainUrl, isPrimary: true, label: "principal" });
   }
+  galleryUrls.forEach((url, i) =>
+    orderedUrls.push({ url, isPrimary: !fallbackMainUrl && i === 0, label: `galeria-${i + 1}` })
+  );
 
   // 7. Download & upload ────────────────────────────────────────────────────
   const insertedImages: { storage_path: string; is_primary: boolean; display_order: number; alt_text: string }[] = [];

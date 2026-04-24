@@ -285,7 +285,19 @@ export default async function HomePage() {
             <p>Entendemos que las campañas tienen fechas. Por eso ofrecemos producción express en menos de 5 días hábiles para pedidos urgentes. Envíos a todo el territorio con rastreo en tiempo real.</p>
             <a href="#contacto" className="btn btn-primary">Ver plazos de entrega</a>
           </div>
-          <div className="feature-visual" style={{ background: "linear-gradient(135deg, #fff3e0, #ff9d60)" }}>🚚</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/img/envios-caja.jpg"
+            alt="Caja ProMarca lista para envío"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              width: "100%",
+              maxWidth: "520px",
+              borderRadius: "20px",
+              objectFit: "cover",
+            }}
+          />
         </div>
       </section>
 

@@ -80,7 +80,10 @@ async function fetchImagesForProduct(
     `${GALLERY_BASE}/${encodeURIComponent(variant)}/${encodeURIComponent(variant)}${suffix}`;
 
   // 2. Look up supplier cache for the numeric product ID (exact match) ───────
-  let mainImageUrl: string | null = null;
+  // Note: productos/{id}.jpg is a low-res thumbnail (~30KB) used by the supplier
+  // for category listings — NOT the main product photo. We store the ID so we can
+  // use it as a last resort if no gallery images exist.
+  let fallbackMainUrl: string | null = null;
   let foundInCache = false;
 
   try {
@@ -95,7 +98,7 @@ async function fetchImagesForProduct(
       const id = cacheRow.supplier_id ?? cacheRow.page_url.match(/\/p\/[^/]+\/(\d+)\//)?.[1];
       if (id) {
         const candidate = `${PRODUCTS_BASE}/${id}.jpg`;
-        if (await checkUrlExists(candidate)) mainImageUrl = candidate;
+        if (await checkUrlExists(candidate)) fallbackMainUrl = candidate;
       }
     }
   } catch { /* ignore */ }
@@ -138,12 +141,9 @@ async function fetchImagesForProduct(
 
   // 4. Name-based cache fallback ────────────────────────────────────────────
   // When gallery is empty AND no exact cache match: search by supplier_name
-  // to find the numeric supplier_id → main product image.
-  // This handles products like FOCUS-CE, SHELL, VENTURA-CE whose gallery
-  // doesn't exist but whose main image does (productos/{supplier_id}.jpg).
-  if (!mainImageUrl && galleryUrls.length === 0 && !foundInCache) {
+  // to get supplier_id → fallback thumbnail (productos/{id}.jpg).
+  if (galleryUrls.length === 0 && !foundInCache) {
     try {
-      // Extract the most distinctive keyword: skip generic first words
       const SKIP_WORDS = new Set(['lapicero', 'boligrafo', 'bolígrafo', 'sombrilla',
         'lapiz', 'lápiz', 'tarro', 'tula', 'mochila', 'gorra', 'termo', 'mug', 'poncho']);
       const words = productName.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !SKIP_WORDS.has(w));
@@ -152,12 +152,11 @@ async function fetchImagesForProduct(
       if (keyword) {
         const { data: nameMatches } = await supabase
           .from("supplier_product_cache")
-          .select("reference, supplier_id, supplier_name, page_url")
+          .select("supplier_id, supplier_name")
           .ilike("supplier_name", `%${keyword}%`)
           .order("supplier_id", { ascending: false })
           .limit(5);
 
-        // Pick the match whose supplier_name most resembles the product name
         const best = nameMatches?.find(m =>
           productName.toLowerCase().split(' ').some(w => w.length > 3 &&
             m.supplier_name.toLowerCase().includes(w))
@@ -166,7 +165,7 @@ async function fetchImagesForProduct(
         if (best?.supplier_id) {
           const candidate = `${PRODUCTS_BASE}/${best.supplier_id}.jpg`;
           if (await checkUrlExists(candidate)) {
-            mainImageUrl = candidate;
+            fallbackMainUrl = candidate;
             foundInCache = true;
           }
         }
@@ -175,7 +174,7 @@ async function fetchImagesForProduct(
   }
 
   // 5. Still nothing found ───────────────────────────────────────────────────
-  if (!mainImageUrl && galleryUrls.length === 0) {
+  if (galleryUrls.length === 0 && !fallbackMainUrl) {
     return {
       found: false, imagesCount: 0, reference, productId, productName,
       failReason: foundInCache ? "no_gallery_images" : "no_cache_match",
@@ -183,12 +182,21 @@ async function fetchImagesForProduct(
     };
   }
 
-  // 6. Build ordered list ───────────────────────────────────────────────────
+  // 6. Build ordered list — gallery first (matches supplier display order) ──
+  // The supplier shows gallery images (-2, -3, -4...) as the primary photos.
+  // productos/{id}.jpg is a low-res thumbnail used only as fallback when
+  // no gallery images exist.
   const orderedUrls: { url: string; isPrimary: boolean; label: string }[] = [];
-  if (mainImageUrl) orderedUrls.push({ url: mainImageUrl, isPrimary: true, label: "principal" });
-  galleryUrls.forEach((url, i) =>
-    orderedUrls.push({ url, isPrimary: !mainImageUrl && i === 0, label: `galeria-${i + 1}` })
-  );
+
+  if (galleryUrls.length > 0) {
+    // Gallery images in order: first one is primary
+    galleryUrls.forEach((url, i) =>
+      orderedUrls.push({ url, isPrimary: i === 0, label: `galeria-${i + 1}` })
+    );
+  } else if (fallbackMainUrl) {
+    // No gallery: use thumbnail as sole image
+    orderedUrls.push({ url: fallbackMainUrl, isPrimary: true, label: "principal" });
+  }
 
   // 7. Download & upload ────────────────────────────────────────────────────
   const insertedImages: { storage_path: string; is_primary: boolean; display_order: number; alt_text: string }[] = [];

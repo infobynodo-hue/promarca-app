@@ -5,8 +5,24 @@ export interface Category {
   slug: string;
   description: string | null;
   icon: string | null;
+  cover_image_url: string | null;
   display_order: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── PROMO CARDS (homepage featured grid) ───
+export interface PromoCard {
+  id: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string | null;
+  catalog_slug: string | null;
+  image_url: string | null;
+  display_order: number;
+  is_active: boolean;
+  is_dark: boolean;
   created_at: string;
   updated_at: string;
 }

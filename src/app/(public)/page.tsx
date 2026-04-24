@@ -93,13 +93,14 @@ const kits: KitOffer[] = [
 
 export default async function HomePage() {
   const supabase = await createClient();
-  const { data: categories } = await supabase
-    .from("categories")
-    .select("*")
-    .eq("is_active", true)
-    .order("display_order");
+
+  const [{ data: categories }, { data: promoCards }] = await Promise.all([
+    supabase.from("categories").select("*").eq("is_active", true).order("display_order"),
+    supabase.from("promo_cards").select("*").eq("is_active", true).order("display_order").limit(4),
+  ]);
 
   const cats = categories ?? [];
+  const promos = promoCards ?? [];
 
   return (
     <>
@@ -214,58 +215,25 @@ export default async function HomePage() {
 
       {/* ── PROMO GRID ── */}
       <div className="promo-grid" id="destacados">
-        <div className="promo-card">
-          <div className="promo-content">
-            <p className="promo-eyebrow">Más vendido</p>
-            <h2 className="promo-title">Termos<br />Premium</h2>
-            <p className="promo-sub">Acero inoxidable con doble pared. Tu logo grabado a láser para que nunca se borre.</p>
-            <div className="promo-links">
-              <Link href="/catalogo/termos">Ver catálogo</Link>
-              <a href="#contacto">Cotizar</a>
+        {promos.map((card) => (
+          <div key={card.id} className={`promo-card${card.is_dark ? " dark-card" : ""}`}>
+            <div className="promo-content">
+              {card.eyebrow && <p className="promo-eyebrow">{card.eyebrow}</p>}
+              <h2 className="promo-title">{card.title}</h2>
+              {card.subtitle && <p className="promo-sub">{card.subtitle}</p>}
+              <div className="promo-links">
+                {card.catalog_slug
+                  ? <Link href={`/catalogo/${card.catalog_slug}`}>Ver catálogo</Link>
+                  : <span />}
+                <a href="#contacto">Cotizar</a>
+              </div>
             </div>
+            {card.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={card.image_url} alt={card.title} className="promo-visual-img" />
+            )}
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/promo/termos.png" alt="Termos Premium" className="promo-visual-img" />
-        </div>
-        <div className="promo-card dark-card">
-          <div className="promo-content">
-            <p className="promo-eyebrow">Nueva colección</p>
-            <h2 className="promo-title">Gorras<br />2026</h2>
-            <p className="promo-sub">Bordado premium en 3D o transfer. Más de 12 colores disponibles con ajuste universal.</p>
-            <div className="promo-links">
-              <Link href="/catalogo/gorras">Ver catálogo</Link>
-              <a href="#contacto">Cotizar</a>
-            </div>
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/promo/gorras.png" alt="Gorras 2026" className="promo-visual-img" />
-        </div>
-        <div className="promo-card dark-card">
-          <div className="promo-content">
-            <p className="promo-eyebrow">Esencial de oficina</p>
-            <h2 className="promo-title">Lapiceros<br />con logotipo</h2>
-            <p className="promo-sub">Desde 100 unidades. Impresión serigráfica de alta resolución en 4 colores.</p>
-            <div className="promo-links">
-              <Link href="/catalogo/lapiceros">Ver catálogo</Link>
-              <a href="#contacto">Cotizar</a>
-            </div>
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/promo/lapiceros.png" alt="Lapiceros con logotipo" className="promo-visual-img" />
-        </div>
-        <div className="promo-card">
-          <div className="promo-content">
-            <p className="promo-eyebrow">Tendencia 2026</p>
-            <h2 className="promo-title">Tulas &<br />Mochilas</h2>
-            <p className="promo-sub">Canvas reciclado y tela premium. Sublimación total o bordado en panel frontal.</p>
-            <div className="promo-links">
-              <Link href="/catalogo/tulas">Ver catálogo</Link>
-              <a href="#contacto">Cotizar</a>
-            </div>
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/promo/tulas.png" alt="Tulas y Mochilas" className="promo-visual-img" />
-        </div>
+        ))}
       </div>
 
       {/* ── FEATURE — Personalización ── */}

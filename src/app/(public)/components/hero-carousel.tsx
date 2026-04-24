@@ -4,20 +4,28 @@ import { useEffect, useState, useCallback } from "react";
 
 const slides = [
   {
-    src: "/img/hero/slide-eventos.png",
-    label: "Eventos corporativos",
+    src: "/img/hero/slide-viviendas.jpg",
+    label: "Viviendas y Valores",
+  },
+  {
+    src: "/img/hero/slide-colpatria.png",
+    label: "Colpatria",
+  },
+  {
+    src: "/img/hero/slide-cens.png",
+    label: "CENS",
   },
   {
     src: "/img/hero/slide-oracle.png",
-    label: "Tecnología promocional",
+    label: "Oracle",
   },
   {
-    src: "/img/hero/slide-viviendas.png",
-    label: "Kits inmobiliarios",
+    src: "/img/hero/slide-ecoimagen.jpg",
+    label: "Ecoimagen",
   },
   {
-    src: "/img/hero/slide-ecoimagen.png",
-    label: "Sector salud",
+    src: "/img/hero/slide-ctrl-alt-supr.png",
+    label: "Ctrl Alt Supr",
   },
 ];
 

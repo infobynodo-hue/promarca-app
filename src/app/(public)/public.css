@@ -443,6 +443,13 @@
 }
 .promo-card.dark-card { background: #1d1d1f; color: #f5f5f7; }
 
+/* Wrapper que aísla el texto del card por encima de la imagen */
+.promo-content {
+  position: relative;
+  z-index: 2;
+  max-width: 52%;
+}
+
 .promo-eyebrow {
   font-size: 12px;
   font-weight: 600;
@@ -475,17 +482,18 @@
 }
 .promo-visual-img {
   position: absolute;
+  z-index: 1;
   right: 0;
   bottom: 0;
-  width: 55%;
-  max-width: 320px;
+  width: 58%;
+  max-width: 340px;
   height: 100%;
   object-fit: cover;
   object-position: center;
-  opacity: 0.92;
+  opacity: 0.95;
   pointer-events: none;
-  mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,1) 60%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,1) 60%);
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 22%, rgba(0,0,0,1) 48%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 22%, rgba(0,0,0,1) 48%);
 }
 
 /* ─── FEATURE SECTION ─── */

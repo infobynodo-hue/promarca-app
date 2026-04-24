@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -14,8 +15,10 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Verify user has a valid active profile (prevents profile-less auth bypass)
-  const { data: profile } = await supabase
+  // Verify user has a valid active profile using admin client to bypass
+  // the infinite-recursion RLS policy on user_profiles
+  const adminSupabase = createAdminClient();
+  const { data: profile } = await adminSupabase
     .from("user_profiles")
     .select("role, is_active")
     .eq("id", user.id)

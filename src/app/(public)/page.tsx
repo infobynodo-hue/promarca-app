@@ -222,7 +222,8 @@ export default async function HomePage() {
             <Link href="/catalogo/termos">Ver catálogo</Link>
             <a href="#contacto">Cotizar</a>
           </div>
-          <div className="promo-visual">🥤</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/promo/termos.png" alt="Termos Premium" className="promo-visual-img" />
         </div>
         <div className="promo-card dark-card">
           <p className="promo-eyebrow">Nueva colección</p>
@@ -232,7 +233,8 @@ export default async function HomePage() {
             <Link href="/catalogo/gorras">Ver catálogo</Link>
             <a href="#contacto">Cotizar</a>
           </div>
-          <div className="promo-visual">🧢</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/promo/gorras.png" alt="Gorras 2026" className="promo-visual-img" />
         </div>
         <div className="promo-card dark-card">
           <p className="promo-eyebrow">Esencial de oficina</p>
@@ -242,7 +244,8 @@ export default async function HomePage() {
             <Link href="/catalogo/lapiceros">Ver catálogo</Link>
             <a href="#contacto">Cotizar</a>
           </div>
-          <div className="promo-visual">🖊️</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/promo/lapiceros.png" alt="Lapiceros con logotipo" className="promo-visual-img" />
         </div>
         <div className="promo-card">
           <p className="promo-eyebrow">Tendencia 2026</p>
@@ -252,7 +255,8 @@ export default async function HomePage() {
             <Link href="/catalogo/tulas">Ver catálogo</Link>
             <a href="#contacto">Cotizar</a>
           </div>
-          <div className="promo-visual">🎒</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/promo/tulas.png" alt="Tulas y Mochilas" className="promo-visual-img" />
         </div>
       </div>
 

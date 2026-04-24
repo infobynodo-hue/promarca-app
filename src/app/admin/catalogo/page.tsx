@@ -189,6 +189,11 @@ export default function ProductosPage() {
               <FileUp className="mr-2 h-4 w-4" /> Importar PDF
             </Button>
           </Link>
+          <Link href="/admin/catalogo/importar-proveedor">
+            <Button variant="outline">
+              <PackageOpen className="mr-2 h-4 w-4" /> Importar proveedor
+            </Button>
+          </Link>
           <Link href="/admin/catalogo/nuevo">
             <Button>
               <Plus className="mr-2 h-4 w-4" /> Nuevo

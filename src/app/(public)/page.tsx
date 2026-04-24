@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { HeroCarousel } from "./components/hero-carousel";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
-import { BeforeAfterSlider } from "@/components/public/BeforeAfterSlider";
 import { KitCarousel, type KitOffer } from "@/components/public/KitCarousel";
 
 const clients = [
@@ -269,13 +268,18 @@ export default async function HomePage() {
             <p>Usamos las mejores técnicas del mercado: serigrafía, sublimación, bordado 3D, grabado láser y transfer digital. Cada producto pasa por un control de calidad riguroso antes de llegar a tus manos.</p>
             <a href="#contacto" className="btn btn-primary">Solicitar muestra</a>
           </div>
-          {/* Before/After slider — replace placeholder with real product photos */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <BeforeAfterSlider
-              beforeImage="/img/personalizacion/producto-sin-logo.jpg"
-              afterImage="/img/personalizacion/producto-con-logo.jpg"
-              beforeLabel="Sin logo"
-              afterLabel="Con tu logo"
+          {/* Video láser — autoplay, loop, sin pausa al click/hover */}
+          <div style={{ flex: 1, minWidth: 0, borderRadius: "20px", overflow: "hidden", aspectRatio: "9/16", maxHeight: "560px", background: "#000" }}>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              src="/img/personalizacion/laser-engraving.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              disablePictureInPicture
+              onContextMenu={(e) => e.preventDefault()}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
             />
           </div>
         </div>

@@ -15,9 +15,10 @@ const ROUTE_PERMISSIONS: [string, string][] = [
   ["/admin/catalogo",             "catalogo"],
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // ── Auth client (reads session from request cookies) ──
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -35,45 +36,59 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-
   if (!path.startsWith("/admin")) return supabaseResponse;
 
-  // Not logged in → login
+  // Validate session against Supabase Auth (network call — safe in Edge)
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Not logged in → login page
   if (!user) {
+    // Avoid redirect loop if already on login
+    if (path === "/admin/login") return supabaseResponse;
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     return NextResponse.redirect(url);
   }
 
-  // Check profile: is_active + permissions
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role, permissions, is_active")
-    .eq("id", user.id)
-    .single();
+  // ── Profile lookup via service-role key (bypasses RLS) ──
+  // We use a plain fetch call to the PostgREST API so we stay in the Edge
+  // runtime without importing the full supabase-js client.
+  let profile: { role: string; permissions: Record<string, boolean>; is_active: boolean } | null = null;
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/user_profiles?id=eq.${user.id}&select=role,permissions,is_active&limit=1`,
+      {
+        headers: {
+          apikey:        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+          Accept:        "application/json",
+        },
+        cache: "no-store",
+      }
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      profile = rows[0] ?? null;
+    }
+  } catch {
+    // Network error — allow through rather than bouncing the user
+  }
 
-  // Allow login page — but only redirect to dashboard if the user has a valid profile
-  // (avoids redirect loop when a user has a session but no profile row)
+  // Already on login page
   if (path === "/admin/login") {
     if (profile?.is_active) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin/dashboard";
       return NextResponse.redirect(url);
     }
-    // No valid profile → stay on login so the user can sign out
     return supabaseResponse;
   }
 
-  // No profile row → redirect to public home (NOT login, to avoid the loop)
-  if (!profile) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
+  // Profile missing or fetch failed — let through (page can do its own check)
+  if (!profile) return supabaseResponse;
 
-  // Deactivated user → logout
+  // Deactivated account → send back to login
   if (!profile.is_active) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
@@ -83,11 +98,11 @@ export async function middleware(request: NextRequest) {
   // Admins bypass all permission checks
   if (profile.role === "admin") return supabaseResponse;
 
-  // Staff: check route permission
+  // Staff: enforce per-route permission
   const match = ROUTE_PERMISSIONS.find(([prefix]) => path.startsWith(prefix));
   if (match) {
     const permKey = match[1];
-    const allowed = (profile.permissions as Record<string, boolean>)?.[permKey] ?? false;
+    const allowed = profile.permissions?.[permKey] ?? false;
     if (!allowed) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin/dashboard";

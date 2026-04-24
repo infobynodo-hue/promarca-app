@@ -16,6 +16,8 @@ import {
   ChevronUp,
   RefreshCw,
   Database,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -27,6 +29,25 @@ interface ProductRow {
   category: { name: string } | null;
 }
 
+type FailReason =
+  | "ref_invalid"
+  | "no_cache_match"
+  | "no_gallery_images"
+  | "download_failed"
+  | "upload_failed"
+  | "db_insert_failed"
+  | "unknown";
+
+const FAIL_LABELS: Record<FailReason, { label: string; color: string }> = {
+  ref_invalid:       { label: "Referencia inválida",          color: "text-red-600" },
+  no_cache_match:    { label: "No está en el índice",         color: "text-orange-600" },
+  no_gallery_images: { label: "Sin fotos en el proveedor",    color: "text-amber-600" },
+  download_failed:   { label: "Error de descarga",            color: "text-red-500" },
+  upload_failed:     { label: "Error al subir a Storage",     color: "text-red-600" },
+  db_insert_failed:  { label: "Error al guardar en BD",       color: "text-red-700" },
+  unknown:           { label: "Error desconocido",            color: "text-zinc-500" },
+};
+
 interface FetchResult {
   found: boolean;
   imagesCount: number;
@@ -34,7 +55,8 @@ interface FetchResult {
   productId: string;
   productName: string;
   descriptionUpdated?: boolean;
-  error?: string;
+  failReason?: FailReason;
+  failDetail?: string;
 }
 
 interface BulkResult {
@@ -88,6 +110,7 @@ export default function FotosProveedorPage() {
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
 
   const [showRecent, setShowRecent] = useState(false);
+  const [expandedError, setExpandedError] = useState<string | null>(null); // productId with expanded error
   const [loadingData, setLoadingData] = useState(true);
 
   // Catalog sync state
@@ -594,55 +617,73 @@ export default function FotosProveedorPage() {
                     <th className="px-4 py-3 text-left font-medium">Referencia</th>
                     <th className="px-4 py-3 text-left font-medium">Producto</th>
                     <th className="px-4 py-3 text-left font-medium">Categoría</th>
-                    <th className="px-4 py-3 text-center font-medium w-40">Acción</th>
+                    <th className="px-4 py-3 text-center font-medium w-48">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {productsWithout.map((p) => {
                     const status = rowStatuses[p.id] ?? "idle";
                     const result = rowResults[p.id];
+                    const failInfo = result?.failReason ? FAIL_LABELS[result.failReason] : null;
+                    const isExpanded = expandedError === p.id;
                     return (
-                      <tr key={p.id} className="border-b last:border-0 hover:bg-zinc-50/50">
-                        <td className="px-4 py-3 font-mono text-xs font-bold text-zinc-700">
-                          {p.reference}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-zinc-800 max-w-[200px] truncate">
-                          {p.name}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-500 text-xs">
-                          {p.category?.name ?? "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {status === "idle" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleSingleFetch(p.id)}
-                            >
-                              <Search className="mr-1.5 h-3.5 w-3.5" />
-                              Buscar foto
-                            </Button>
-                          )}
-                          {status === "loading" && (
-                            <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              Buscando...
-                            </div>
-                          )}
-                          {status === "found" && result && (
-                            <div className="flex items-center justify-center gap-1.5 text-xs text-green-600">
-                              <CheckCircle2 className="h-4 w-4" />
-                              {result.imagesCount} imagen{result.imagesCount !== 1 ? "es" : ""}
-                            </div>
-                          )}
-                          {status === "not_found" && (
-                            <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-400">
-                              <XCircle className="h-4 w-4" />
-                              No encontrado
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={p.id} className="border-b last:border-0 hover:bg-zinc-50/50">
+                          <td className="px-4 py-3 font-mono text-xs font-bold text-zinc-700">
+                            {p.reference}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-zinc-800 max-w-[200px] truncate">
+                            {p.name}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-500 text-xs">
+                            {p.category?.name ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {status === "idle" && (
+                              <Button size="sm" variant="outline" onClick={() => handleSingleFetch(p.id)}>
+                                <Search className="mr-1.5 h-3.5 w-3.5" />
+                                Buscar foto
+                              </Button>
+                            )}
+                            {status === "loading" && (
+                              <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Buscando...
+                              </div>
+                            )}
+                            {status === "found" && result && (
+                              <div className="flex items-center justify-center gap-1.5 text-xs text-green-600">
+                                <CheckCircle2 className="h-4 w-4" />
+                                {result.imagesCount} imagen{result.imagesCount !== 1 ? "es" : ""}
+                              </div>
+                            )}
+                            {status === "not_found" && result && (
+                              <button
+                                onClick={() => setExpandedError(isExpanded ? null : p.id)}
+                                className={`flex items-center justify-center gap-1.5 text-xs w-full ${failInfo?.color ?? "text-zinc-400"} hover:opacity-80`}
+                              >
+                                <XCircle className="h-4 w-4 flex-shrink-0" />
+                                <span className="font-medium">{failInfo?.label ?? "Error"}</span>
+                                <Info className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {/* Expanded error detail row */}
+                        {status === "not_found" && result?.failDetail && isExpanded && (
+                          <tr key={`${p.id}-detail`} className="bg-amber-50 border-b">
+                            <td colSpan={4} className="px-4 py-3">
+                              <div className="flex items-start gap-2">
+                                <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                <div className="text-xs text-amber-800 leading-relaxed">
+                                  <span className="font-semibold">Motivo: </span>
+                                  {result.failDetail}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>

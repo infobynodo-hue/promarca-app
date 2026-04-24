@@ -184,7 +184,7 @@ export function PublicFooter() {
             {/* Contact info */}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
-                { Icon: Mail,   text: "hola@promarca.co",   href: "mailto:hola@promarca.co" },
+                { Icon: Mail,   text: "promarcapop@gmail.com",   href: "mailto:promarcapop@gmail.com" },
                 { Icon: Phone,  text: "+57 302 521 2938",    href: "https://wa.me/573025212938" },
                 { Icon: MapPin, text: "Bogotá, Colombia",    href: "#" },
               ].map(({ Icon, text, href }) => (

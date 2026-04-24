@@ -143,6 +143,7 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
           <p class="product-name">${item.product_name}</p>
           ${item.product_reference ? `<p class="product-ref">${item.product_reference}</p>` : ""}
         </div>
+        ${item.color ? `<p class="product-color">Color: <strong>${item.color}</strong></p>` : ""}
         ${item.notes ? `<p class="product-desc">${item.notes}</p>` : ""}
         <div class="price-row">
           <div class="price-block">
@@ -229,7 +230,7 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     align-items: flex-start;
   }
   .logo-wrap { display: flex; flex-direction: column; gap: 4px; }
-  .logo-img { height: 44px; width: auto; display: block; }
+  .logo-img { height: 40px; width: auto; max-width: 180px; display: block; object-fit: contain; }
   .logo {
     font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1;
   }
@@ -296,6 +297,10 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
     font-size: 10px; font-weight: 600; color: #999;
     text-transform: uppercase; letter-spacing: 0.06em;
   }
+  .product-color {
+    font-size: 11px; color: #555; line-height: 1.4;
+  }
+  .product-color strong { color: #111; }
   .product-desc {
     font-size: 11px; color: #666; line-height: 1.5;
     max-width: 340px;

@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, FileDown, Copy, Trash2, LayoutTemplate } from "lucide-react";
+import { Plus, FileDown, Copy, Trash2, LayoutTemplate, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -172,6 +172,11 @@ export default function CotizacionesPage() {
                       ) : formatPrice(q.total)}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
+                      <Link href={`/admin/cotizaciones/${q.id}/editar`}>
+                        <Button variant="ghost" size="icon" title="Editar">
+                          <Pencil className="h-4 w-4 text-blue-500" />
+                        </Button>
+                      </Link>
                       <Button
                         variant="ghost"
                         size="icon"

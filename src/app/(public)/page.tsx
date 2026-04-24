@@ -105,11 +105,11 @@ export default async function HomePage() {
     <>
       {/* ── HERO ── */}
       <section className="hero dark" id="inicio">
-        <p className="hero-eyebrow">Nuevos productos 2026</p>
+        <p className="hero-eyebrow">Merchandising</p>
         <h1 className="hero-title">Tu marca.<br />En cada detalle.</h1>
         <p className="hero-sub">Productos promocionales que generan recordación duradera. Personalizados para tu empresa.</p>
         <div className="hero-ctas">
-          <a href="#catalogo" className="btn btn-primary btn-glass">Ver catálogo</a>
+          <a href="#catalogo" className="btn btn-primary btn-glass">Ver catálogos</a>
           <a href="#personalizacion" className="btn btn-secondary btn-glass" style={{ color: "#86868b", borderBottom: "1px solid #86868b" }}>Cómo personalizar</a>
         </div>
         <HeroCarousel />
@@ -331,7 +331,7 @@ export default async function HomePage() {
       <div className="cta-band" id="contacto">
         <h2>¿Listo para llevar<br />tu marca más lejos?</h2>
         <p>Recibe tu cotización personalizada en menos de 24 horas.</p>
-        <a href="mailto:hola@promarca.co" className="btn-white btn-glass shine">Solicitar cotización</a>
+        <a href="mailto:promarcapop@gmail.com" className="btn-white btn-glass shine">Solicitar cotización</a>
         <a href="https://wa.me/573000000000" className="btn-outline-white btn-glass shine">Escríbenos por WhatsApp</a>
       </div>
     </>

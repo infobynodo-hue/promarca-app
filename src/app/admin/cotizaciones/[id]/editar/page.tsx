@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Client, Product } from "@/lib/types";
@@ -60,13 +60,23 @@ const MARKING_TYPES = [
   "Transfer",
 ];
 
-export default function NuevaCotizacionPage() {
+export default function EditarCotizacionPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
   const supabase = createClient();
   const router = useRouter();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Quote metadata (read-only)
+  const [quoteNumber, setQuoteNumber] = useState("");
+  const [originalValidUntil, setOriginalValidUntil] = useState<string | null>(null);
 
   // Quote state
   const [clientId, setClientId] = useState("");
@@ -99,15 +109,56 @@ export default function NuevaCotizacionPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, quoteRes, itemsRes] = await Promise.all([
         supabase.from("clients").select("*").order("company"),
         supabase.from("products").select("id, reference, name, description, price, has_variants").order("name"),
+        supabase.from("quotes").select("*").eq("id", id).single(),
+        supabase.from("quote_items").select("*").eq("quote_id", id).order("display_order"),
       ]);
+
       setClients(c.data ?? []);
       setProducts((p.data ?? []) as Product[]);
+
+      if (quoteRes.error || !quoteRes.data) {
+        toast.error("No se encontró la cotización");
+        router.push("/admin/cotizaciones");
+        return;
+      }
+
+      const quote = quoteRes.data;
+      setQuoteNumber(quote.quote_number ?? "");
+      setClientId(quote.client_id ?? "");
+      setDiscountPercent(quote.discount_percent ?? 0);
+      setNotes(quote.notes ?? "");
+      setOriginalValidUntil(quote.valid_until ?? null);
+
+      // Compute remaining days from valid_until
+      if (quote.valid_until) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const until = new Date(quote.valid_until);
+        until.setHours(0, 0, 0, 0);
+        const diff = Math.round((until.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        setValidDays(diff > 0 ? diff : 0);
+      }
+
+      // Map quote_items to LineItem
+      const loadedItems: LineItem[] = (itemsRes.data ?? []).map((row: any) => ({
+        product_id: row.product_id ?? null,
+        product_name: row.product_name ?? "",
+        product_reference: row.product_reference ?? "",
+        color: row.color ?? "",
+        quantity: row.quantity ?? 1,
+        unit_price: row.unit_price ?? 0,
+        marking_type: row.marking_type ?? "Sin marcado",
+        marking_price: row.marking_price ?? 0,
+        notes: row.notes ?? "",
+      }));
+      setItems(loadedItems);
+      setLoading(false);
     };
     load();
-  }, []);
+  }, [id]);
 
   // Calculations
   const subtotal = items.reduce(
@@ -215,7 +266,7 @@ export default function NuevaCotizacionPage() {
     toast.success("Cliente creado");
   };
 
-  // Save quote
+  // Save (update) quote
   const handleSave = async () => {
     if (!clientId) {
       toast.error("Selecciona un cliente antes de continuar");
@@ -233,59 +284,42 @@ export default function NuevaCotizacionPage() {
 
     setSaving(true);
 
-    // Find first available number: fetch all existing quote numbers this year,
-    // then pick the lowest gap so deleted numbers are reused.
-    const year = new Date().getFullYear();
-    const { data: existingQuotes } = await supabase
+    // Update the quote row (keep original valid_until)
+    const { error: updateError } = await supabase
       .from("quotes")
-      .select("quote_number")
-      .like("quote_number", `COT-${year}-%`);
-
-    const usedNums = new Set(
-      (existingQuotes ?? []).map((q) => {
-        const parts = q.quote_number.split("-");
-        return parseInt(parts[parts.length - 1], 10);
-      }).filter((n) => !isNaN(n))
-    );
-
-    let nextNum = 1;
-    while (usedNums.has(nextNum)) nextNum++;
-
-    const quoteNumber = `COT-${year}-${String(nextNum).padStart(4, "0")}`;
-
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + validDays);
-
-    const { data: quote, error } = await supabase
-      .from("quotes")
-      .insert({
-        quote_number: quoteNumber,
+      .update({
         client_id: clientId || null,
-        status: "draft",
         subtotal,
         discount_percent: discountPercent,
         iva_percent: ivaPercent,
         total,
         notes: notes || null,
-        valid_until: validUntil.toISOString().split("T")[0],
+        valid_until: originalValidUntil,
       })
-      .select("id")
-      .single();
+      .eq("id", id);
 
-    if (error || !quote) {
-      if (error?.code === "23505") {
-        toast.error("Número de cotización duplicado — intenta guardar de nuevo.");
-      } else {
-        toast.error("Error al crear: " + (error?.message ?? ""));
-      }
+    if (updateError) {
+      toast.error("Error al actualizar: " + updateError.message);
       setSaving(false);
       return;
     }
 
-    // Insert line items
-    await supabase.from("quote_items").insert(
+    // Delete all existing items
+    const { error: deleteError } = await supabase
+      .from("quote_items")
+      .delete()
+      .eq("quote_id", id);
+
+    if (deleteError) {
+      toast.error("Error al actualizar productos: " + deleteError.message);
+      setSaving(false);
+      return;
+    }
+
+    // Re-insert updated items
+    const { error: insertError } = await supabase.from("quote_items").insert(
       items.map((item, i) => ({
-        quote_id: quote.id,
+        quote_id: id,
         product_id: item.product_id,
         product_name: item.product_name,
         product_reference: item.product_reference,
@@ -301,9 +335,15 @@ export default function NuevaCotizacionPage() {
       }))
     );
 
-    toast.success(`Cotización ${quoteNumber} creada`);
+    if (insertError) {
+      toast.error("Error al guardar productos: " + insertError.message);
+      setSaving(false);
+      return;
+    }
+
+    toast.success("Cotización actualizada");
     setSaving(false);
-    router.push("/admin/cotizaciones");
+    router.push(`/admin/cotizaciones/${id}`);
   };
 
   const filteredProducts = products.filter(
@@ -313,22 +353,34 @@ export default function NuevaCotizacionPage() {
   );
 
   const inlineFiltered = inlineSearch.trim()
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(inlineSearch.toLowerCase()) ||
-          p.reference.toLowerCase().includes(inlineSearch.toLowerCase())
-      ).slice(0, 8)
+    ? products
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(inlineSearch.toLowerCase()) ||
+            p.reference.toLowerCase().includes(inlineSearch.toLowerCase())
+        )
+        .slice(0, 8)
     : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-zinc-400">
+        Cargando cotización...
+      </div>
+    );
+  }
 
   return (
     <>
       <div className="flex items-center gap-4">
-        <Link href="/admin/cotizaciones">
+        <Link href={`/admin/cotizaciones/${id}`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Nueva cotización</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Editar cotización · {quoteNumber}
+        </h1>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -372,12 +424,18 @@ export default function NuevaCotizacionPage() {
                       <button
                         key={p.id}
                         type="button"
-                        onMouseDown={() => { addProduct(p); }}
+                        onMouseDown={() => {
+                          addProduct(p);
+                        }}
                         className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-50 border-b border-zinc-100 last:border-0"
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-mono text-[10px] font-bold text-zinc-400 uppercase shrink-0">{p.reference}</span>
-                          <span className="font-medium text-zinc-800 truncate">{p.name}</span>
+                          <span className="font-mono text-[10px] font-bold text-zinc-400 uppercase shrink-0">
+                            {p.reference}
+                          </span>
+                          <span className="font-medium text-zinc-800 truncate">
+                            {p.name}
+                          </span>
                           {(p as any).has_variants && (
                             <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-1.5 py-0.5">
                               <Layers className="h-2.5 w-2.5" /> Variantes
@@ -385,17 +443,28 @@ export default function NuevaCotizacionPage() {
                           )}
                         </div>
                         <span className="text-xs font-semibold text-zinc-500 shrink-0 ml-3">
-                          {(p as any).has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
+                          {(p as any).has_variants
+                            ? `Desde ${formatPrice(p.price)}`
+                            : formatPrice(p.price)}
                         </span>
                       </button>
                     ))}
                   </div>
                 )}
-                {showInlineDropdown && inlineSearch.trim() && inlineFiltered.length === 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg px-3 py-3 text-sm text-zinc-400">
-                    Sin resultados · <button type="button" className="text-orange-500 hover:underline" onMouseDown={addManualItem}>agregar manualmente</button>
-                  </div>
-                )}
+                {showInlineDropdown &&
+                  inlineSearch.trim() &&
+                  inlineFiltered.length === 0 && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-zinc-200 bg-white shadow-lg px-3 py-3 text-sm text-zinc-400">
+                      Sin resultados ·{" "}
+                      <button
+                        type="button"
+                        className="text-orange-500 hover:underline"
+                        onMouseDown={addManualItem}
+                      >
+                        agregar manualmente
+                      </button>
+                    </div>
+                  )}
               </div>
             </CardHeader>
             <CardContent>
@@ -437,7 +506,9 @@ export default function NuevaCotizacionPage() {
                           <Label className="text-xs">Color</Label>
                           <Input
                             value={item.color}
-                            onChange={(e) => updateItem(i, "color", e.target.value)}
+                            onChange={(e) =>
+                              updateItem(i, "color", e.target.value)
+                            }
                             placeholder="Ej: Azul navy, Rojo..."
                           />
                         </div>
@@ -459,7 +530,11 @@ export default function NuevaCotizacionPage() {
                           type="number"
                           value={item.quantity}
                           onChange={(e) =>
-                            updateItem(i, "quantity", parseInt(e.target.value) || 0)
+                            updateItem(
+                              i,
+                              "quantity",
+                              parseInt(e.target.value) || 0
+                            )
                           }
                         />
                       </div>
@@ -481,7 +556,9 @@ export default function NuevaCotizacionPage() {
                         <Label className="text-xs">Tipo marcado</Label>
                         <Select
                           value={item.marking_type}
-                          onValueChange={(v) => updateItem(i, "marking_type", v ?? "")}
+                          onValueChange={(v) =>
+                            updateItem(i, "marking_type", v ?? "")
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -512,7 +589,9 @@ export default function NuevaCotizacionPage() {
                     </div>
 
                     <div>
-                      <Label className="text-xs">Descripción (aparece en el PDF)</Label>
+                      <Label className="text-xs">
+                        Descripción (aparece en el PDF)
+                      </Label>
                       <Textarea
                         value={item.notes}
                         onChange={(e) => updateItem(i, "notes", e.target.value)}
@@ -566,7 +645,10 @@ export default function NuevaCotizacionPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <Select value={clientId} onValueChange={(v) => setClientId(v ?? "")}>
+              <Select
+                value={clientId}
+                onValueChange={(v) => setClientId(v ?? "")}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cliente..." />
                 </SelectTrigger>
@@ -615,12 +697,21 @@ export default function NuevaCotizacionPage() {
               </div>
 
               <div className="pt-2">
-                <Label className="text-xs">Vigencia (días)</Label>
+                <Label className="text-xs">Vigencia (días restantes)</Label>
                 <Input
                   type="number"
                   value={validDays}
-                  onChange={(e) => setValidDays(parseInt(e.target.value) || 15)}
+                  onChange={(e) =>
+                    setValidDays(parseInt(e.target.value) || 0)
+                  }
+                  disabled
+                  className="bg-zinc-50 text-zinc-500"
                 />
+                {originalValidUntil && (
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Válida hasta: {new Date(originalValidUntil).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -637,9 +728,13 @@ export default function NuevaCotizacionPage() {
             </p>
           )}
 
-          <Button onClick={handleSave} className="w-full" disabled={saving || !clientId || items.length === 0}>
+          <Button
+            onClick={handleSave}
+            className="w-full"
+            disabled={saving || !clientId || items.length === 0}
+          >
             <Save className="mr-2 h-4 w-4" />
-            {saving ? "Guardando..." : "Crear cotización"}
+            {saving ? "Guardando..." : "Guardar cambios"}
           </Button>
 
           <Link href="/admin/cotizaciones/plantilla" target="_blank">
@@ -682,7 +777,9 @@ export default function NuevaCotizacionPage() {
                   )}
                 </div>
                 <span className="text-sm font-medium text-zinc-600 shrink-0 ml-2">
-                  {(p as any).has_variants ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price)}
+                  {(p as any).has_variants
+                    ? `Desde ${formatPrice(p.price)}`
+                    : formatPrice(p.price)}
                 </span>
               </button>
             ))}
@@ -696,7 +793,15 @@ export default function NuevaCotizacionPage() {
       </Dialog>
 
       {/* Variant picker dialog */}
-      <Dialog open={showVariantDialog} onOpenChange={(open) => { if (!open) { setShowVariantDialog(false); setVariantPickerProduct(null); } }}>
+      <Dialog
+        open={showVariantDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowVariantDialog(false);
+            setVariantPickerProduct(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -707,7 +812,9 @@ export default function NuevaCotizacionPage() {
           {variantPickerProduct && (
             <div className="space-y-3 pt-1">
               <p className="text-sm text-zinc-500">
-                <span className="font-mono text-xs font-bold text-zinc-400 mr-1">{variantPickerProduct.reference}</span>
+                <span className="font-mono text-xs font-bold text-zinc-400 mr-1">
+                  {variantPickerProduct.reference}
+                </span>
                 {variantPickerProduct.name}
               </p>
               <div className="space-y-2">
@@ -723,12 +830,18 @@ export default function NuevaCotizacionPage() {
                   >
                     <span className="font-medium text-zinc-800">{v.label}</span>
                     <span className="text-sm font-bold text-orange-600">
-                      {new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(v.price)}
+                      {new Intl.NumberFormat("es-CO", {
+                        style: "currency",
+                        currency: "COP",
+                        minimumFractionDigits: 0,
+                      }).format(v.price)}
                     </span>
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-zinc-400 text-center">Selecciona una variante para agregar a la cotización</p>
+              <p className="text-xs text-zinc-400 text-center">
+                Selecciona una variante para agregar a la cotización
+              </p>
             </div>
           )}
         </DialogContent>

@@ -51,6 +51,31 @@ export async function GET(request: NextRequest) {
     const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
     const h1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").trim() : "";
 
+    // Extract first few product names and references
+    const productNames: string[] = [];
+    const productRefs: string[] = [];
+    if (hasProducts) {
+      const nameRe = /<h3>([\s\S]*?)(?:<a|<\/h3>)/gi;
+      let nm: RegExpExecArray | null;
+      while ((nm = nameRe.exec(html)) !== null && productNames.length < 5) {
+        const name = nm[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        if (name) productNames.push(name);
+      }
+      const refRe = /<p class="ref[^"]*">([\s\S]*?)<\/p>/gi;
+      let rm: RegExpExecArray | null;
+      while ((rm = refRe.exec(html)) !== null && productRefs.length < 5) {
+        const ref = rm[1].replace(/<[^>]+>/g, "").trim();
+        if (ref) productRefs.push(ref);
+      }
+    }
+
+    // Find how many pages
+    const pageLinks = links.filter(l => l.includes("&Page="));
+    const maxPage = pageLinks.reduce((max, l) => {
+      const m = l.match(/Page=(\d+)/);
+      return m ? Math.max(max, parseInt(m[1])) : max;
+    }, 1);
+
     return NextResponse.json({
       status: res.status,
       ok: res.ok,
@@ -59,8 +84,10 @@ export async function GET(request: NextRequest) {
       h1,
       hasProducts,
       productCount,
-      links: links.slice(0, 30),
-      htmlSnippet: html.slice(0, 2000),
+      totalPages: maxPage,
+      productNames,
+      productRefs,
+      links: links.slice(0, 20),
     });
   } catch (err) {
     return NextResponse.json({

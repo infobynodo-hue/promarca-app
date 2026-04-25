@@ -3,9 +3,9 @@ export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const SUPPLIER_BASE = "https://catalogospromocionales.com";
-const GALLERY_BASE  = "https://catalogospromocionales.com/images/galeria";
-const PRODUCTS_BASE = "https://catalogospromocionales.com/images/productos";
+const SUPPLIER_BASE = "https://www.catalogospromocionales.com";
+const GALLERY_BASE  = "https://www.catalogospromocionales.com/images/galeria";
+const PRODUCTS_BASE = "https://www.catalogospromocionales.com/images/productos";
 const MAX_GALLERY   = 12;
 const FETCH_TIMEOUT = 10000;
 

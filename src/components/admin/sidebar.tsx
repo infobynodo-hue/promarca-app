@@ -17,6 +17,7 @@ import {
   Megaphone,
   UserCog,
   Star,
+  ShoppingBag,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/admin/catalogo/categorias", label: "Categorías", icon: FolderOpen },
   { href: "/admin/destacados", label: "Destacados", icon: Star },
   { href: "/admin/cotizaciones", label: "Cotizaciones", icon: FileText },
+  { href: "/admin/pedidos",      label: "Pedidos",      icon: ShoppingBag },
   { href: "/admin/campanas", label: "Ventas B2C", icon: Megaphone },
   { href: "/admin/pro", label: "Pro", icon: BrainCircuit },
   { href: "/admin/clientes", label: "Clientes", icon: Users },

@@ -18,8 +18,12 @@ import {
   ArrowLeft, FileDown, LayoutTemplate, CheckCircle2, ShoppingBag,
   X, PackageCheck, AlertCircle,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   draft:    { label: "Borrador",   color: "bg-zinc-100 text-zinc-600" },
@@ -42,27 +46,71 @@ export default function CotizacionDetailPage({
 }) {
   const { id } = use(params);
   const supabase = createClient();
+  const router = useRouter();
   const [quote, setQuote] = useState<any>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
 
   // Confirmation flow
   const [showConfirmPanel, setShowConfirmPanel] = useState(false);
   const [confirmRows, setConfirmRows] = useState<ConfirmRow[]>([]);
   const [confirming, setSaving] = useState(false);
 
+  // Create order dialog
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [orderForm, setOrderForm] = useState({ advance_payment: "", client_notification_email: "", estimated_delivery: "", notes: "" });
+  const [creatingOrder, setCreatingOrder] = useState(false);
+
   useEffect(() => {
     const load = async () => {
-      const [qRes, iRes] = await Promise.all([
+      const [qRes, iRes, ordRes] = await Promise.all([
         supabase.from("quotes").select("*, client:clients(*)").eq("id", id).single(),
         supabase.from("quote_items").select("*").eq("quote_id", id).order("display_order"),
+        supabase.from("orders").select("id").eq("quote_id", id).maybeSingle(),
       ]);
       setQuote(qRes.data);
       setItems(iRes.data ?? []);
+      setExistingOrderId(ordRes.data?.id ?? null);
+      if (qRes.data?.client?.email) {
+        setOrderForm((f) => ({ ...f, client_notification_email: qRes.data.client.email ?? "" }));
+      }
       setLoading(false);
     };
     load();
   }, [id]);
+
+  const handleCreateOrder = async () => {
+    if (!quote) return;
+    setCreatingOrder(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quote_id: id,
+          client_id: quote.client_id,
+          total_billed: orderTotal > 0 ? orderTotal : quote.total,
+          advance_payment: parseFloat(orderForm.advance_payment) || 0,
+          client_notification_email: orderForm.client_notification_email || quote.client?.email || null,
+          estimated_delivery: orderForm.estimated_delivery || null,
+          notes: orderForm.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Error al crear pedido");
+      }
+      const order = await res.json();
+      toast.success(`✅ Pedido ${order.order_number} creado correctamente`);
+      setOrderDialogOpen(false);
+      router.push(`/admin/pedidos/${order.id}`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
@@ -184,6 +232,25 @@ export default function CotizacionDetailPage({
               <PackageCheck className="h-4 w-4" />
               Confirmar como pedido
             </Button>
+          )}
+          {/* Crear Pedido — when accepted and no existing order */}
+          {isAccepted && !existingOrderId && !showConfirmPanel && (
+            <Button
+              onClick={() => setOrderDialogOpen(true)}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              Crear Pedido
+            </Button>
+          )}
+          {/* Ver Pedido — when order already created */}
+          {isAccepted && existingOrderId && (
+            <Link href={`/admin/pedidos/${existingOrderId}`}>
+              <Button className="gap-2 bg-zinc-800 hover:bg-zinc-900 text-white">
+                <ShoppingBag className="h-4 w-4" />
+                Ver Pedido
+              </Button>
+            </Link>
           )}
           {/* Status selector — hide when confirming */}
           {!showConfirmPanel && (
@@ -547,6 +614,73 @@ export default function CotizacionDetailPage({
           </Card>
         </div>
       </div>
+
+      {/* ── Create Order Dialog ── */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-orange-500" />
+              Crear pedido desde cotización
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-zinc-50 rounded-lg p-3 text-sm">
+              <p className="text-zinc-500">Cotización</p>
+              <p className="font-semibold font-mono">{quote?.quote_number}</p>
+              <p className="font-bold text-lg mt-1">{formatPrice(orderTotal > 0 ? orderTotal : quote?.total ?? 0)}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Email del cliente para notificaciones</label>
+              <Input
+                type="email"
+                placeholder="cliente@email.com"
+                value={orderForm.client_notification_email}
+                onChange={(e) => setOrderForm({ ...orderForm, client_notification_email: e.target.value })}
+              />
+              <p className="text-xs text-zinc-400 mt-1">Se enviará un email de confirmación cuando conectes Resend</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Anticipo recibido (COP)</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={orderForm.advance_payment}
+                  onChange={(e) => setOrderForm({ ...orderForm, advance_payment: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Entrega estimada</label>
+                <Input
+                  type="date"
+                  value={orderForm.estimated_delivery}
+                  onChange={(e) => setOrderForm({ ...orderForm, estimated_delivery: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Notas internas (opcional)</label>
+              <Input
+                placeholder="Instrucciones especiales..."
+                value={orderForm.notes}
+                onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOrderDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={handleCreateOrder}
+              disabled={creatingOrder}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {creatingOrder ? "Creando pedido..." : "Crear pedido"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

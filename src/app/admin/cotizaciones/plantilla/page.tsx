@@ -81,6 +81,7 @@ export default function PlantillaPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [makeDefault, setMakeDefault] = useState(true);
 
   const fetchTemplates = async () => {
     const { data } = await supabase
@@ -141,29 +142,34 @@ export default function PlantillaPage() {
     }
     setSavingTemplate(true);
 
-    // Mark all others as non-default, this one as default
-    await supabase.from("quote_templates").update({ is_default: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+    if (makeDefault) {
+      await supabase.from("quote_templates").update({ is_default: false }).neq("id", "00000000-0000-0000-0000-000000000000");
+    }
 
     const { error } = await supabase.from("quote_templates").insert({
       name: newTemplateName.trim(),
       settings,
-      is_default: true,
+      is_default: makeDefault,
     });
 
     if (error) {
       toast.error("Error: " + error.message);
     } else {
-      toast.success(`Plantilla "${newTemplateName}" guardada`);
+      toast.success(
+        makeDefault
+          ? `Plantilla "${newTemplateName}" guardada y marcada como predeterminada`
+          : `Plantilla "${newTemplateName}" guardada`
+      );
       setSaveDialogOpen(false);
       setNewTemplateName("");
+      setMakeDefault(true);
       fetchTemplates();
-      // Also save to app_settings
-      await handleSave();
+      if (makeDefault) await handleSave();
     }
     setSavingTemplate(false);
   };
 
-  // Activate a saved template (load its settings + save as active)
+  // Set a saved template as predeterminada (load its settings + save as active)
   const handleActivateTemplate = async (tpl: SavedTemplate) => {
     setSettings(tpl.settings);
 
@@ -177,7 +183,7 @@ export default function PlantillaPage() {
       .from("app_settings")
       .upsert(entries.map(([key, value]) => ({ key, value })), { onConflict: "key" });
 
-    toast.success(`Plantilla "${tpl.name}" activada`);
+    toast.success(`"${tpl.name}" es ahora la plantilla predeterminada`);
     fetchTemplates();
   };
 
@@ -387,7 +393,7 @@ export default function PlantillaPage() {
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-zinc-800 truncate">{tpl.name}</p>
                       {tpl.is_default && (
-                        <Badge className="text-[10px] h-4 px-1.5 bg-orange-500 shrink-0">Activa</Badge>
+                        <Badge className="text-[10px] h-4 px-1.5 bg-orange-500 shrink-0">Predeterminada</Badge>
                       )}
                     </div>
                     <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -429,7 +435,7 @@ export default function PlantillaPage() {
                       className="h-7 flex-1 text-xs bg-orange-500 hover:bg-orange-600"
                       onClick={() => handleActivateTemplate(tpl)}
                     >
-                      <CheckCircle2 className="mr-1 h-3 w-3" /> Activar
+                      <CheckCircle2 className="mr-1 h-3 w-3" /> Predeterminada
                     </Button>
                   )}
                 </div>
@@ -465,13 +471,27 @@ export default function PlantillaPage() {
                 <strong>{settings.quote_company_name}</strong> · {settings.quote_primary_color}
               </div>
             </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={makeDefault}
+                onChange={(e) => setMakeDefault(e.target.checked)}
+                className="h-4 w-4 accent-orange-500"
+              />
+              <span className="text-sm text-zinc-700">Establecer como plantilla predeterminada</span>
+            </label>
+            {makeDefault && (
+              <p className="text-[11px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                Las nuevas cotizaciones usarán esta plantilla automáticamente.
+              </p>
+            )}
             <Button
               onClick={handleSaveAsTemplate}
               disabled={savingTemplate || !newTemplateName.trim()}
               className="w-full"
             >
               <BookMarked className="mr-2 h-4 w-4" />
-              {savingTemplate ? "Guardando..." : "Guardar y activar"}
+              {savingTemplate ? "Guardando..." : makeDefault ? "Guardar y marcar predeterminada" : "Guardar plantilla"}
             </Button>
           </div>
         </DialogContent>

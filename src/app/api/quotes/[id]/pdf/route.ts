@@ -433,6 +433,37 @@ function buildQuoteHTML({ quote, items, client, s, primary, formatPrice, discoun
   }
   .logo-note strong { color: #111; }
 
+  /* ── TÉRMINOS Y CONDICIONES ── */
+  .tc-box {
+    border: 1.5px solid #e8e8e8; border-radius: 12px;
+    padding: 20px 22px; margin-bottom: 14px;
+    background: #fafafa;
+  }
+  .tc-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.8px;
+    text-transform: uppercase; color: #333;
+    margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 2px solid #FF6B1A;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .tc-title span { color: #FF6B1A; font-size: 14px; }
+  .tc-item {
+    margin-bottom: 9px; padding-left: 14px;
+    position: relative; font-size: 10px; color: #444; line-height: 1.55;
+  }
+  .tc-item::before {
+    content: attr(data-n); position: absolute; left: 0;
+    font-weight: 800; color: #FF6B1A; font-size: 10px;
+  }
+  .tc-item strong { color: #111; font-weight: 700; }
+  .tc-closing {
+    margin-top: 14px; padding: 10px 14px;
+    background: #fff3e8; border-left: 3px solid #FF6B1A;
+    border-radius: 0 8px 8px 0;
+    font-size: 10px; font-weight: 700; color: #333; line-height: 1.5;
+    font-style: italic;
+  }
+
   /* ── FOOTER ── */
   .footer-divider {
     height: 1px; background: #ebebeb; margin: 0 32px 28px;
@@ -587,6 +618,42 @@ ${isPreview ? "" : `<!-- Print toolbar -->
       <div class="info-box">
         <div class="info-box-title">💳 Método de pago</div>
         <p class="info-text"><strong>Pago Anticipado</strong><br/>${s.quote_payment_terms}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TÉRMINOS Y CONDICIONES ── -->
+  <div class="section">
+    <div class="tc-box">
+      <div class="tc-title"><span>📋</span> Términos y Condiciones</div>
+
+      <div class="tc-item" data-n="1.">
+        <strong>Confirmación del pedido.</strong>
+        La aprobación de la cotización y el pago (total o parcial) constituyen la confirmación formal del pedido, autorizando a PROMARCA a iniciar el proceso de producción, personalización y/o adquisición de los productos solicitados, independientemente de que estos cuenten o no con marcación.
+      </div>
+
+      <div class="tc-item" data-n="2.">
+        <strong>No devoluciones ni cancelaciones.</strong>
+        Todos los productos, tanto personalizados (con marcación) como no personalizados (sin marcación), son gestionados bajo pedido. Por lo tanto, no se realizan devoluciones de dinero, cancelaciones ni modificaciones una vez aprobado el pedido y efectuado el pago, sin excepción.
+      </div>
+
+      <div class="tc-item" data-n="3.">
+        <strong>Revisión de información.</strong>
+        Es responsabilidad del cliente verificar previamente todos los detalles de la cotización, incluyendo productos, cantidades, especificaciones, colores, referencias, marcación (si aplica), tiempos de entrega y condiciones. La falta de revisión o lectura de esta información no exime al cliente del cumplimiento de estas condiciones.
+      </div>
+
+      <div class="tc-item" data-n="4.">
+        <strong>Tiempos de entrega.</strong>
+        Los tiempos de entrega establecidos comienzan a contarse a partir de la confirmación del pedido (aprobación + pago) y aplican tanto para productos con marcación como sin marcación. Estos pueden variar según disponibilidad, producción y logística. PROMARCA informará cualquier novedad que pueda afectar los tiempos inicialmente estimados.
+      </div>
+
+      <div class="tc-item" data-n="5.">
+        <strong>Condición de productos bajo pedido.</strong>
+        Todos los productos ofrecidos por PROMARCA, con o sin marcación, son gestionados específicamente para cada cliente, por lo que no pueden ser reutilizados, revendidos ni reubicados una vez solicitados, motivo por el cual no aplican cambios, devoluciones ni retractos.
+      </div>
+
+      <div class="tc-closing">
+        👉 "La aprobación de esta cotización implica la aceptación total de los términos y condiciones aquí descritos."
       </div>
     </div>
   </div>
